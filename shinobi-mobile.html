@@ -386,25 +386,22 @@ const Touch = {
 // ─── LAYOUT (localStorage) ───────────────────────────────────
 const Layout = {
   DEFAULTS(){
-    const W=window.innerWidth, H=window.innerHeight;
-    const fieldW=800*H/680;           // game field CSS width
-    const sideW=Math.max((W-fieldW)/2, 60); // black area width on each side
-    const lc=Math.round(sideW/2);     // left area center x
-    const rc=Math.round(W-sideW/2);   // right area center x
+    // right プロパティ = 画面右端からの距離。apply() で左端座標に変換するため
+    // 画面サイズに依存しない安定した配置
     return {
-      'base-left':  { bottom:42, left:lc-50,  size:100 },
-      'base-right': { bottom:42, left:rc-50,  size:100 },
-      'btn-fire':   { bottom:165,left:rc-36,  size:72  },
-      'btn-mine':   { bottom:250,left:rc-24,  size:48  },
+      'base-left':  { bottom:42, left:20,   size:100 },
+      'base-right': { bottom:42, right:20,  size:100 },
+      'btn-fire':   { bottom:165,right:34,  size:72  },
+      'btn-mine':   { bottom:250,right:46,  size:48  },
     };
   },
   cfg:null,
   load(){
-    try{ const s=localStorage.getItem('shinobiLayout_v2');
+    try{ const s=localStorage.getItem('shinobiLayout_v3');
       this.cfg=s?JSON.parse(s):this.DEFAULTS();
     }catch{ this.cfg=this.DEFAULTS(); }
   },
-  save(){ try{ localStorage.setItem('shinobiLayout_v2',JSON.stringify(this.cfg)); }catch(e){} },
+  save(){ try{ localStorage.setItem('shinobiLayout_v3',JSON.stringify(this.cfg)); }catch(e){} },
   reset(){ this.cfg=this.DEFAULTS(); this.apply(); },
   apply(){
     const W=window.innerWidth, H=window.innerHeight;
@@ -412,7 +409,9 @@ const Layout = {
       const el=document.getElementById(id); if(!el) continue;
       const sz=c.size;
       el.style.width=sz+'px'; el.style.height=sz+'px';
-      el.style.left=clamp(c.left,0,W-sz)+'px'; el.style.right='';
+      // right プロパティがある場合は右端から計算（画面幅変化にも対応）
+      const lx = c.right!==undefined ? W-c.right-sz : (c.left||0);
+      el.style.left=clamp(lx,0,W-sz)+'px'; el.style.right='';
       el.style.bottom=clamp(c.bottom,0,H-sz)+'px'; el.style.top='';
     }
   }
@@ -1485,14 +1484,14 @@ const G = {
 
   _resize(){
     const sw=window.innerWidth, sh=window.innerHeight;
-    // Scale canvas height to fill the screen; CW expands to fill width
     const pixScale=sh/CH;
     CW=Math.round(sw/pixScale);
-    FX=Math.round((CW-FW)/2); // re-center game field horizontally
-    this._petals=null; // reset petal positions for new canvas width
+    FX=Math.round((CW-FW)/2);
+    this._petals=null;
     this.cv.width=CW; this.cv.height=CH;
     this.cv.style.width=sw+'px'; this.cv.style.height=sh+'px';
     this.cv.style.transform=''; this.cv.style.transformOrigin='';
+    if(typeof Layout!=='undefined'&&Layout.cfg) Layout.apply(); // コントロール位置を再計算
   },
 
   // 操作系UIの表示切替：戦闘中だけスティック・ボタンを出す
@@ -2312,11 +2311,12 @@ const G = {
     const fz=1-this.ts;
     if(fz>0.05){
       ctx.save();
-      ctx.fillStyle=`rgba(40,52,96,${(fz*0.12).toFixed(3)})`;
+      ctx.fillStyle=`rgba(30,44,90,${(fz*0.22).toFixed(3)})`;
       ctx.fillRect(FX,FY,FW,FH);
-      const g=ctx.createRadialGradient(CW/2,CH/2,CH*0.35,CW/2,CH/2,CH*0.78);
+      const g=ctx.createRadialGradient(CW/2,CH/2,CH*0.25,CW/2,CH/2,CH*0.82);
       g.addColorStop(0,'rgba(0,0,0,0)');
-      g.addColorStop(1,`rgba(8,10,24,${(fz*0.5).toFixed(3)})`);
+      g.addColorStop(0.6,`rgba(6,8,20,${(fz*0.45).toFixed(3)})`);
+      g.addColorStop(1,`rgba(4,6,18,${(fz*0.88).toFixed(3)})`);
       ctx.fillStyle=g; ctx.fillRect(0,0,CW,CH);
       if(fz>0.85&&this.state===ST.PLAY){
         ctx.globalAlpha=0.18+0.07*Math.sin(this.frame*0.05);
@@ -2324,22 +2324,6 @@ const G = {
         ctx.fillText('― 動けば、時が動く ―', CW/2, CH-14);
       }
       ctx.restore(); ctx.textAlign='left';
-    }
-    // 左サイド：大型 静/動 インジケーター（空きスペース活用）
-    if(FX>80){
-      const sFlow=this.ts>0.5;
-      const sHc=GOTON[this.element]||GOTON.FIRE;
-      const sFsz=Math.min(FX*0.72,84)|0;
-      const sSideX=FX/2, sSideY=FY+(CH-FY)/2;
-      ctx.save();
-      ctx.font=`bold ${sFsz}px ${FJ}`;
-      ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.globalAlpha=sFlow?(0.52+0.18*Math.sin(this.frame*0.08)):(0.32+0.08*Math.sin(this.frame*0.05));
-      ctx.fillStyle=sFlow?sHc.col:'#7FA8D9';
-      if(sFlow){ctx.shadowColor=sHc.glow; ctx.shadowBlur=22+8*Math.sin(this.frame*0.08);}
-      ctx.fillText(sFlow?'動':'静', sSideX, sSideY);
-      ctx.shadowBlur=0; ctx.restore();
-      ctx.textBaseline='alphabetic'; ctx.textAlign='left';
     }
     this.rHUD(ctx);
     if(this.startT>0){
@@ -2428,8 +2412,8 @@ const G = {
     ctx.fillStyle=WASHI; ctx.font='bold 19px '+FJ; ctx.textAlign='left';
     ctx.fillText('第'+kanjiNum(this.mission)+'幕', FX+8, 39);
     // 討伐（第X幕の右に続けて・重ならない距離）
-    ctx.fillStyle='#C9BFA8'; ctx.font='13px '+FJ;
-    ctx.fillText('討伐 '+this.score, FX+88, 39);
+    ctx.fillStyle='#C9BFA8'; ctx.font='bold 17px '+FJ;
+    ctx.fillText('討伐 '+this.score, FX+96, 39);
     // 静⇄動 ゲージ（中央・大型）
     const bw=260, bh=16, bx=CW/2-bw/2, by=18;
     const flow=this.ts>0.5;
