@@ -386,21 +386,25 @@ const Touch = {
 // ─── LAYOUT (localStorage) ───────────────────────────────────
 const Layout = {
   DEFAULTS(){
-    const W=window.innerWidth;
+    const W=window.innerWidth, H=window.innerHeight;
+    const fieldW=800*H/680;           // game field CSS width
+    const sideW=Math.max((W-fieldW)/2, 60); // black area width on each side
+    const lc=Math.round(sideW/2);     // left area center x
+    const rc=Math.round(W-sideW/2);   // right area center x
     return {
-      'base-left':  { bottom:55, left:40,    size:100 },
-      'base-right': { bottom:55, left:W-140, size:100 },
-      'btn-fire':   { bottom:25, left:W-86,  size:72  },
-      'btn-mine':   { bottom:107,left:W-68,  size:48  },
+      'base-left':  { bottom:42, left:lc-50,  size:100 },
+      'base-right': { bottom:42, left:rc-50,  size:100 },
+      'btn-fire':   { bottom:165,left:rc-36,  size:72  },
+      'btn-mine':   { bottom:250,left:rc-24,  size:48  },
     };
   },
   cfg:null,
   load(){
-    try{ const s=localStorage.getItem('shinobiLayout_v1');
+    try{ const s=localStorage.getItem('shinobiLayout_v2');
       this.cfg=s?JSON.parse(s):this.DEFAULTS();
     }catch{ this.cfg=this.DEFAULTS(); }
   },
-  save(){ try{ localStorage.setItem('shinobiLayout_v1',JSON.stringify(this.cfg)); }catch(e){} },
+  save(){ try{ localStorage.setItem('shinobiLayout_v2',JSON.stringify(this.cfg)); }catch(e){} },
   reset(){ this.cfg=this.DEFAULTS(); this.apply(); },
   apply(){
     const W=window.innerWidth, H=window.innerHeight;
@@ -2321,6 +2325,22 @@ const G = {
       }
       ctx.restore(); ctx.textAlign='left';
     }
+    // 左サイド：大型 静/動 インジケーター（空きスペース活用）
+    if(FX>80){
+      const sFlow=this.ts>0.5;
+      const sHc=GOTON[this.element]||GOTON.FIRE;
+      const sFsz=Math.min(FX*0.72,84)|0;
+      const sSideX=FX/2, sSideY=FY+(CH-FY)/2;
+      ctx.save();
+      ctx.font=`bold ${sFsz}px ${FJ}`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.globalAlpha=sFlow?(0.52+0.18*Math.sin(this.frame*0.08)):(0.32+0.08*Math.sin(this.frame*0.05));
+      ctx.fillStyle=sFlow?sHc.col:'#7FA8D9';
+      if(sFlow){ctx.shadowColor=sHc.glow; ctx.shadowBlur=22+8*Math.sin(this.frame*0.08);}
+      ctx.fillText(sFlow?'動':'静', sSideX, sSideY);
+      ctx.shadowBlur=0; ctx.restore();
+      ctx.textBaseline='alphabetic'; ctx.textAlign='left';
+    }
     this.rHUD(ctx);
     if(this.startT>0){
       const a=Math.min(1,this.startT/30);
@@ -2403,28 +2423,31 @@ const G = {
     ctx.fillRect(0,0,CW,FY-5);
     ctx.strokeStyle='rgba(212,175,55,0.30)'; ctx.lineWidth=1;
     ctx.beginPath(); ctx.moveTo(0,FY-5.5); ctx.lineTo(CW,FY-5.5); ctx.stroke();
-    ctx.fillStyle=WASHI; ctx.font='bold 20px '+FJ; ctx.textAlign='left';
-    ctx.fillText('第'+kanjiNum(this.mission)+'幕', FX, 36);
-    ctx.fillStyle='#FF9D7E'; ctx.font='17px '+FJ;
-    ctx.fillText('残命 一', 220, 35);
-    ctx.fillStyle='#C9BFA8';
-    ctx.fillText('討伐 '+this.score, 330, 35);
-    // 静⇄動 ゲージ（「動」は流派の色で満ちる）
-    const bx=505, bw=150, by=21;
+    ctx.textBaseline='alphabetic';
+    // 第X幕（フィールド左端）
+    ctx.fillStyle=WASHI; ctx.font='bold 19px '+FJ; ctx.textAlign='left';
+    ctx.fillText('第'+kanjiNum(this.mission)+'幕', FX+8, 39);
+    // 討伐（第X幕の右に続けて・重ならない距離）
+    ctx.fillStyle='#C9BFA8'; ctx.font='13px '+FJ;
+    ctx.fillText('討伐 '+this.score, FX+88, 39);
+    // 静⇄動 ゲージ（中央・大型）
+    const bw=260, bh=16, bx=CW/2-bw/2, by=18;
     const flow=this.ts>0.5;
     const hc=GOTON[this.element]||GOTON.FIRE;
-    ctx.font='bold 20px '+FJ; ctx.textAlign='center';
+    ctx.font='bold 34px '+FJ; ctx.textAlign='right';
     ctx.fillStyle=flow?hc.col:'#7FA8D9';
-    ctx.fillText(flow?'動':'静', bx-22, by+17);
-    ctx.fillStyle='rgba(255,255,255,0.08)'; ctx.fillRect(bx,by,bw,11);
+    if(flow){ctx.shadowColor=hc.glow; ctx.shadowBlur=14;}
+    ctx.fillText(flow?'動':'静', bx-12, by+bh+4);
+    ctx.shadowBlur=0;
+    ctx.fillStyle='rgba(255,255,255,0.08)'; ctx.fillRect(bx,by,bw,bh);
     ctx.fillStyle=flow?hc.col:'rgba(127,168,217,0.9)';
-    ctx.fillRect(bx,by,bw*clamp(this.ts/TS_MAX,0,1),11);
+    ctx.fillRect(bx,by,bw*clamp(this.ts/TS_MAX,0,1),bh);
     ctx.strokeStyle='rgba(242,232,213,0.3)'; ctx.lineWidth=1;
-    ctx.strokeRect(bx+0.5,by+0.5,bw-1,10);
-    // 敵影（右上のDOMボタンを避けて少し内側へ）
+    ctx.strokeRect(bx+0.5,by+0.5,bw-1,bh-1);
+    // 敵影（フィールド右端）
     const rem=this.enemies.filter(e=>!e.dead).length;
-    ctx.fillStyle='#FF7E6B'; ctx.font='bold 19px '+FJ; ctx.textAlign='right';
-    ctx.fillText('敵影 '+kanjiNum(rem), CW-FX-70, 36);
+    ctx.fillStyle='#FF7E6B'; ctx.font='bold 18px '+FJ; ctx.textAlign='right';
+    ctx.fillText('敵影 '+kanjiNum(rem), CW-FX-8, 39);
     ctx.textAlign='left';
   },
 
