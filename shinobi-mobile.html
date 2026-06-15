@@ -1379,6 +1379,7 @@ const G = {
   selFlip:null,   // 任務帖のページめくり {t,dur,dir,from}
   helpTab:0,      // 遊び方ページのタブ（0:操作チュートリアル 1:五遁）
   tutorial:null,  // 実戦チュートリアル {step,moveT,fired,mined}
+  _stoneCache:null, _stoneCacheKey:'', // サイドエリア石垣キャッシュ
   ts:1,           // 時間係数: 動くとTS_MAXへ、止まるとMIN_TSへ
   shootPulse:0,   // 手裏剣を放った直後は少しだけ時間が進む
   worldT:0,       // 世界時間（演出用。時間停止中は進まない）
@@ -1487,7 +1488,7 @@ const G = {
     const pixScale=sh/CH;
     CW=Math.round(sw/pixScale);
     FX=Math.round((CW-FW)/2);
-    this._petals=null;
+    this._petals=null; this._stoneCache=null;
     this.cv.width=CW; this.cv.height=CH;
     this.cv.style.width=sw+'px'; this.cv.style.height=sh+'px';
     this.cv.style.transform=''; this.cv.style.transformOrigin='';
@@ -2282,9 +2283,88 @@ const G = {
     line.setAttribute('x2',cx); line.setAttribute('y2',cy);
   },
 
+  // サイドエリアの石垣（キャッシュ付き）
+  rStoneSides(ctx){
+    if(FX<10) return;
+    const key=`${CW},${CH},${FX}`;
+    if(this._stoneCacheKey!==key||!this._stoneCache){
+      const oc=document.createElement('canvas');
+      oc.width=CW; oc.height=CH;
+      const cc=oc.getContext('2d');
+      this._buildStones(cc);
+      this._stoneCache=oc; this._stoneCacheKey=key;
+    }
+    ctx.drawImage(this._stoneCache,0,0);
+  },
+
+  _buildStones(cc){
+    // ゲームフィールドの石垣タイルと同じ配色で描画
+    // 外側にいくほど石が大きく・霧で暗くなる
+    const STEPS=8;
+    const vh=(ix,iy)=>{ const n=Math.sin(ix*127.1+iy*311.7)*43758.5453; return n-Math.floor(n); };
+
+    const drawSide=(nearX,farX)=>{
+      const w=Math.abs(farX-nearX);
+      if(w<4) return;
+      const dir=farX<nearX?-1:1;
+      const xMin=Math.min(nearX,farX);
+
+      cc.save();
+      cc.beginPath(); cc.rect(xMin,0,w,CH); cc.clip();
+
+      for(let s=0;s<STEPS;s++){
+        const t=s/(STEPS-1); // 0=フィールド寄り, 1=画面端
+        const sNear=nearX+dir*w*(s/STEPS);
+        const sFar =nearX+dir*w*((s+1)/STEPS);
+        const sMin=Math.min(sNear,sFar), sW=Math.abs(sFar-sNear);
+
+        // 石のサイズ：外側ほど大きい
+        const bw=14+t*44; // 14→58
+        const bh= 9+t*28; //  9→37
+
+        cc.save();
+        cc.beginPath(); cc.rect(sMin,0,sW,CH); cc.clip();
+
+        for(let ry=-bh,row=0; ry<CH+bh; ry+=bh,row++){
+          const off=(row%2)*(bw*0.5);
+          for(let rx=sMin-off-bw; rx<sMin+sW+bw; rx+=bw){
+            const v=vh((rx/bw+s*7)|0,(ry/bh)|0);
+            // ゲームの石垣タイル配色ベース（#3d4254）に近い色
+            const br=(38+v*16+t*10)|0;
+            cc.fillStyle=`rgb(${br-2},${br},${br+8})`; // 青みがかった石色
+            cc.fillRect(rx+1,ry+1,bw-2,bh-2);
+            // 上エッジハイライト
+            cc.fillStyle=`rgba(180,190,220,${(0.06+v*0.08).toFixed(3)})`;
+            cc.fillRect(rx+1,ry+1,bw-2,1.5);
+            // 左エッジハイライト
+            cc.fillStyle=`rgba(180,190,220,${(0.03+v*0.04).toFixed(3)})`;
+            cc.fillRect(rx+1,ry+2,1.5,bh-4);
+            // 下・右エッジシャドウ
+            cc.fillStyle='rgba(0,0,0,0.45)';
+            cc.fillRect(rx+1,ry+bh-2,bw-2,1.5);
+            cc.fillRect(rx+bw-2,ry+1,1.5,bh-2);
+          }
+        }
+
+        // 奥行きフォグ（外側ほど暗く）
+        const fog=0.04+t*0.80;
+        cc.fillStyle=`rgba(8,9,16,${fog.toFixed(3)})`;
+        cc.fillRect(sMin,0,sW,CH);
+
+        cc.restore();
+      }
+      cc.restore();
+    };
+
+    drawSide(FX-6,0);       // 左サイド（フィールド端→左端）
+    drawSide(FX+FW+6,CW);   // 右サイド（フィールド端→右端）
+  },
+
   rGame(ctx){
     // 夜の背景
     ctx.fillStyle='#0b0c16'; ctx.fillRect(0,0,CW,CH);
+    // サイドエリア石垣
+    this.rStoneSides(ctx);
     // 木枠（戦場の縁）
     ctx.fillStyle='#3a2c1e';
     ctx.fillRect(FX-6,FY-6,FW+12,FH+12);
