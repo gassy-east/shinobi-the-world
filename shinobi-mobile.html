@@ -2283,9 +2283,10 @@ const G = {
     line.setAttribute('x2',cx); line.setAttribute('y2',cy);
   },
 
-  // サイドエリアの石垣（キャッシュ付き）
+  // サイドエリアの石垣＋属性エフェクト
   rStoneSides(ctx){
     if(FX<10) return;
+    // タイルはキャッシュ（静的）
     const key=`${CW},${CH},${FX}`;
     if(this._stoneCacheKey!==key||!this._stoneCache){
       const oc=document.createElement('canvas');
@@ -2295,69 +2296,94 @@ const G = {
       this._stoneCache=oc; this._stoneCacheKey=key;
     }
     ctx.drawImage(this._stoneCache,0,0);
+
+    // 毎フレーム：暗転グラデーション＋属性エフェクト
+    const ce=GOTON[this.element]||GOTON.FIRE;
+    const rgb=hexToRgb(ce.col), gr=hexToRgb(ce.glow);
+    const pulse=0.75+0.25*Math.sin(this.frame*0.04);
+
+    for(const [x0,w,left] of [[0,FX-6,true],[FX+FW+6,CW-(FX+FW+6),false]]){
+      if(w<2) continue;
+      const edgeX=left?x0:x0+w, fieldX=left?x0+w:x0;
+
+      // 暗転グラデーション（フィールド側＝透明 → 画面端＝暗）
+      const dk=ctx.createLinearGradient(fieldX,0,edgeX,0);
+      dk.addColorStop(0,'rgba(8,9,16,0)');
+      dk.addColorStop(0.3,'rgba(8,9,16,0.28)');
+      dk.addColorStop(1,'rgba(4,5,10,0.92)');
+      ctx.fillStyle=dk; ctx.fillRect(x0,0,w,CH);
+
+      // 属性の光（画面端から差し込む）
+      const eg=ctx.createLinearGradient(edgeX,0,fieldX,0);
+      eg.addColorStop(0,`rgba(${rgb.r},${rgb.g},${rgb.b},${(0.28*pulse).toFixed(3)})`);
+      eg.addColorStop(0.45,`rgba(${rgb.r},${rgb.g},${rgb.b},${(0.07*pulse).toFixed(3)})`);
+      eg.addColorStop(1,'rgba(0,0,0,0)');
+      ctx.fillStyle=eg; ctx.fillRect(x0,0,w,CH);
+    }
+
+    // 属性パーティクル
+    this._rSideParticles(ctx,ce,rgb,gr);
   },
 
+  // WALLタイルと同一の描画をサイドエリアに敷き詰める（キャッシュ用）
   _buildStones(cc){
-    // ゲームフィールドの石垣タイルと同じ配色で描画
-    // 外側にいくほど石が大きく・霧で暗くなる
-    const STEPS=8;
-    const vh=(ix,iy)=>{ const n=Math.sin(ix*127.1+iy*311.7)*43758.5453; return n-Math.floor(n); };
-
-    const drawSide=(nearX,farX)=>{
-      const w=Math.abs(farX-nearX);
-      if(w<4) return;
-      const dir=farX<nearX?-1:1;
-      const xMin=Math.min(nearX,farX);
-
-      cc.save();
-      cc.beginPath(); cc.rect(xMin,0,w,CH); cc.clip();
-
-      for(let s=0;s<STEPS;s++){
-        const t=s/(STEPS-1); // 0=フィールド寄り, 1=画面端
-        const sNear=nearX+dir*w*(s/STEPS);
-        const sFar =nearX+dir*w*((s+1)/STEPS);
-        const sMin=Math.min(sNear,sFar), sW=Math.abs(sFar-sNear);
-
-        // 石のサイズ：外側ほど大きい
-        const bw=14+t*44; // 14→58
-        const bh= 9+t*28; //  9→37
-
-        cc.save();
-        cc.beginPath(); cc.rect(sMin,0,sW,CH); cc.clip();
-
-        for(let ry=-bh,row=0; ry<CH+bh; ry+=bh,row++){
-          const off=(row%2)*(bw*0.5);
-          for(let rx=sMin-off-bw; rx<sMin+sW+bw; rx+=bw){
-            const v=vh((rx/bw+s*7)|0,(ry/bh)|0);
-            // ゲームの石垣タイル配色ベース（#3d4254）に近い色
-            const br=(38+v*16+t*10)|0;
-            cc.fillStyle=`rgb(${br-2},${br},${br+8})`; // 青みがかった石色
-            cc.fillRect(rx+1,ry+1,bw-2,bh-2);
-            // 上エッジハイライト
-            cc.fillStyle=`rgba(180,190,220,${(0.06+v*0.08).toFixed(3)})`;
-            cc.fillRect(rx+1,ry+1,bw-2,1.5);
-            // 左エッジハイライト
-            cc.fillStyle=`rgba(180,190,220,${(0.03+v*0.04).toFixed(3)})`;
-            cc.fillRect(rx+1,ry+2,1.5,bh-4);
-            // 下・右エッジシャドウ
-            cc.fillStyle='rgba(0,0,0,0.45)';
-            cc.fillRect(rx+1,ry+bh-2,bw-2,1.5);
-            cc.fillRect(rx+bw-2,ry+1,1.5,bh-2);
-          }
+    const drawSide=(x0,w)=>{
+      if(w<2) return;
+      cc.save(); cc.beginPath(); cc.rect(x0,0,w,CH); cc.clip();
+      // フィールドグリッドに合わせてタイル開始位置を揃える
+      const startX=x0-((x0-FX)%CS+CS)%CS;
+      const startY=-(FY%CS+CS)%CS;
+      for(let ty=startY; ty<CH; ty+=CS){
+        for(let tx=startX; tx<x0+w+CS; tx+=CS){
+          // Field.draw()のWALLタイルと同じ描画
+          cc.fillStyle='#3d4254'; cc.fillRect(tx,ty,CS,CS);
+          cc.fillStyle='#555b70';
+          cc.fillRect(tx+2,ty+2,CS-4,5); cc.fillRect(tx+2,ty+2,5,CS-4);
+          cc.fillStyle='#2a2e3c';
+          cc.fillRect(tx+2,ty+CS-7,CS-4,5); cc.fillRect(tx+CS-7,ty+2,5,CS-4);
         }
-
-        // 奥行きフォグ（外側ほど暗く）
-        const fog=0.04+t*0.80;
-        cc.fillStyle=`rgba(8,9,16,${fog.toFixed(3)})`;
-        cc.fillRect(sMin,0,sW,CH);
-
-        cc.restore();
       }
       cc.restore();
     };
+    drawSide(0, FX-6);
+    drawSide(FX+FW+6, CW-(FX+FW+6));
+  },
 
-    drawSide(FX-6,0);       // 左サイド（フィールド端→左端）
-    drawSide(FX+FW+6,CW);   // 右サイド（フィールド端→右端）
+  // 属性別パーティクルをサイドエリアに描画
+  _rSideParticles(ctx,ce,rgb,gr){
+    const f=this.frame, el=this.element;
+    for(const [sx,sw] of [[0,FX-6],[FX+FW+6,CW-(FX+FW+6)]]){
+      if(sw<4) continue;
+      ctx.save(); ctx.beginPath(); ctx.rect(sx,FY,sw,CH-FY); ctx.clip();
+      for(let i=0;i<7;i++){
+        const sd=i*1731.5+sx*0.01;
+        let px,py,r,a;
+        if(el==='FIRE'){
+          py=CH-((f*(0.6+sd%0.4)+sd*73)%(CH-FY));
+          px=sx+sw*(0.15+(sd*0.211%0.7))+Math.sin(f*0.04+sd)*7;
+          r=1.4+Math.sin(f*0.11+sd)*0.9; a=0.5+0.28*Math.sin(f*0.09+sd);
+        } else if(el==='WATER'){
+          py=FY+((f*(0.4+sd%0.3)+sd*61)%(CH-FY));
+          px=sx+sw*(0.2+(sd*0.257%0.6))+Math.sin(f*0.025+sd)*5;
+          r=1.5+Math.cos(f*0.07+sd)*0.7; a=0.38+0.2*Math.sin(f*0.08+sd);
+        } else if(el==='WIND'){
+          px=sx+((f*(2.5+sd%2)+sd*41)%sw);
+          py=FY+(sd*89%(CH-FY))+Math.sin(f*0.05+sd)*18;
+          r=1.1; a=0.3+0.2*Math.sin(f*0.06+sd);
+        } else if(el==='THUNDER'){
+          const fl=Math.sin(f*0.5+sd*3.7); if(fl<0.55)continue;
+          px=sx+sw*(0.1+(sd*0.317%0.8)); py=FY+(sd*67%(CH-FY));
+          r=1+Math.random()*1.5; a=0.8*(fl-0.55)*2.2;
+        } else { // EARTH
+          px=sx+sw*(0.2+(sd*0.237%0.6)); py=FY+(sd*53%(CH-FY));
+          r=2+Math.sin(f*0.03+sd)*0.8; a=0.18+0.12*Math.sin(f*0.035+sd);
+        }
+        ctx.globalAlpha=Math.max(0,Math.min(1,a));
+        ctx.fillStyle=ce.col; ctx.shadowColor=ce.glow; ctx.shadowBlur=r*4;
+        ctx.beginPath(); ctx.arc(px,py,r,0,Math.PI*2); ctx.fill();
+      }
+      ctx.shadowBlur=0; ctx.globalAlpha=1; ctx.restore();
+    }
   },
 
   rGame(ctx){
