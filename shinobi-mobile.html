@@ -1949,10 +1949,10 @@ const G = {
     ctx.restore();
     // ── 右エリア中心X
     const rmx=CW-Math.max(FX*0.5,80);
-    // ── 右上：属性パネル
+    // ── 属性パネル（出陣ボタン上・幅を揃える）
     {
-      const pw=Math.min(300,Math.max(FX*0.95,120)|0), ph=196;
-      const px=rmx-pw/2, py=28;
+      const pw=Math.min(260,Math.max(FX,80)*1.6|0), ph=168;
+      const px=rmx-pw/2, py=240;
       ctx.save();
       // パネル背景
       ctx.fillStyle='rgba(8,10,20,0.82)'; ctx.fillRect(px,py,pw,ph);
@@ -1964,35 +1964,35 @@ const G = {
       ctx.strokeStyle=`rgba(${hexToRgb(ce.col).r},${hexToRgb(ce.col).g},${hexToRgb(ce.col).b},0.2)`;
       ctx.lineWidth=1; ctx.strokeRect(px+5,py+5,pw-10,ph-10);
       // 属性漢字（大）
-      ctx.font='bold 72px '+FJ; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.font='bold 62px '+FJ; ctx.textAlign='center'; ctx.textBaseline='middle';
       ctx.fillStyle=ce.col; ctx.shadowColor=ce.glow; ctx.shadowBlur=24;
-      ctx.fillText(ce.kanji, px+58, py+ph/2+4);
+      ctx.fillText(ce.kanji, px+50, py+ph/2+4);
       ctx.shadowBlur=0; ctx.textBaseline='alphabetic';
       // 縦区切り
       ctx.strokeStyle=`rgba(${hexToRgb(ce.col).r},${hexToRgb(ce.col).g},${hexToRgb(ce.col).b},0.25)`;
       ctx.lineWidth=1;
-      ctx.beginPath(); ctx.moveTo(px+100,py+14); ctx.lineTo(px+100,py+ph-14); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(px+90,py+12); ctx.lineTo(px+90,py+ph-12); ctx.stroke();
       // 属性名
-      ctx.font='bold 24px '+FJ; ctx.textAlign='left'; ctx.fillStyle=WASHI;
+      ctx.font='bold 21px '+FJ; ctx.textAlign='left'; ctx.fillStyle=WASHI;
       ctx.shadowColor=ce.glow; ctx.shadowBlur=6;
-      ctx.fillText(ce.name, px+112, py+52);
+      ctx.fillText(ce.name, px+102, py+40);
       ctx.shadowBlur=0;
       // 効果名
       if(ce.fxName){
-        ctx.font='bold 14px '+FJ; ctx.fillStyle=ce.col;
+        ctx.font='bold 13px '+FJ; ctx.fillStyle=ce.col;
         ctx.shadowColor=ce.glow; ctx.shadowBlur=4;
-        ctx.fillText('【'+ce.fxName+'】', px+112, py+82);
+        ctx.fillText('【'+ce.fxName+'】', px+102, py+66);
         ctx.shadowBlur=0;
-        // 効果説明（2行折り返し）
-        ctx.font='13px '+FJ; ctx.fillStyle='#C8BFA8';
-        const desc=ce.fxDesc||''; const mw=pw-120;
+        // 効果説明（折り返し）
+        ctx.font='12px '+FJ; ctx.fillStyle='#C8BFA8';
+        const desc=ce.fxDesc||''; const mw=pw-108;
         let line='',lines=[],wds=desc.split('');
         for(const c of wds){ if(ctx.measureText(line+c).width>mw){lines.push(line);line=c;}else line+=c; }
         if(line)lines.push(line);
-        lines.slice(0,3).forEach((l,i)=>ctx.fillText(l,px+112,py+108+i*20));
+        lines.slice(0,3).forEach((l,i)=>ctx.fillText(l,px+102,py+90+i*18));
       } else {
-        ctx.font='13px '+FJ; ctx.fillStyle='#C8BFA8';
-        ctx.fillText(ce.desc||'', px+112, py+90);
+        ctx.font='12px '+FJ; ctx.fillStyle='#C8BFA8';
+        ctx.fillText(ce.desc||'', px+102, py+76);
       }
       // コーナー飾り
       ctx.strokeStyle=ce.col; ctx.lineWidth=1.5;
@@ -2323,8 +2323,8 @@ const G = {
     ctx.fillText('画面の案内に沿って、ひとつずつ試そう', CW/2, 252);
     // 覚える操作（大きめの一覧）
     const items=['① 移動 ―― 動くと時が進む','② 照準 ―― 向きを定める','③ 手裏剣 ―― 撃つ','④ 爆符 ―― 足元に置く','⑤ 歯車 ―― 配置と大きさを変更'];
-    ctx.font='23px '+FJ; ctx.fillStyle='#E8DCC0'; ctx.textAlign='right';
-    let yy=298; for(const it of items){ ctx.fillText(it, CW/2+260, yy); yy+=41; }
+    ctx.font='23px '+FJ; ctx.fillStyle='#E8DCC0'; ctx.textAlign='left';
+    let yy=298; for(const it of items){ ctx.fillText(it, CW/2-200, yy); yy+=41; }
     ctx.textAlign='center';
     // はじめるボタン
     const bw=420,bh=96,bx=CW/2-bw/2,by=502,bob=Math.sin(this.frame*0.05)*2;
