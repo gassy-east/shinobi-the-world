@@ -29,7 +29,7 @@ canvas { display: block; }
 #btn-pause, #btn-customize {
   position: fixed; top: 10px;
   width: 44px; height: 44px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
+  display: none; align-items: center; justify-content: center;
   pointer-events: auto; cursor: pointer;
   -webkit-tap-highlight-color: transparent; z-index: 10;
 }
@@ -1501,6 +1501,10 @@ const G = {
     ['zone-left','zone-right','base-left','base-right','btn-fire','btn-mine'].forEach(id=>{
       document.getElementById(id).style.display=d;
     });
+    // 設定・停止ボタンはゲーム中のみ表示
+    const gd=on?'flex':'none';
+    document.getElementById('btn-pause').style.display=gd;
+    document.getElementById('btn-customize').style.display=gd;
   },
   syncControls(){
     if(Customize.active)return;
@@ -1557,17 +1561,22 @@ const G = {
     const x=Touch.tapX, y=Touch.tapY;
     // 遊び方（チュートリアル）← 左上
     if(x>30&&x<158&&y>28&&y<72){ Sfx.play('bounce'); this.helpTab=0; this.startTrans(ST.HELP); return; }
-    // 流派カルーセル帯（左右で送る）
-    if(y>390&&y<580){
+    // 出陣ボタン（右エリア外枠内の下部・最優先チェック）
+    if(this._senjiRect){
+      const r=this._senjiRect;
+      if(x>r.x&&x<r.x+r.w&&y>r.y&&y<r.y+r.h){
+        Sfx.play('deploy');
+        this.startTrans(ST.SELECT,{dur:48,onMid:()=>{this.selPage=clamp(Math.floor(Progress.hi/20),0,4);}});
+        return;
+      }
+    }
+    // 流派カルーセル帯（右エリアに被らない範囲のみ）
+    const _rmx=CW-Math.max(FX*0.5,80), _fw=Math.min(260,Math.max(FX,80)*1.6|0);
+    const rightEdge=_rmx-_fw/2-10; // 右エリア外枠の左端より手前
+    if(y>390&&y<590&&x<rightEdge){
       if(x<CW/2-100){this.elemSel=(this.elemSel+4)%5;this.applyElem();return;}
       if(x>CW/2+100){this.elemSel=(this.elemSel+1)%5;this.applyElem();return;}
     }
-    // 出陣札 → 重厚な音＋暗転フェードで任務帖へ
-    {const _rmx=CW-Math.max(FX*0.5,80),_hw=Math.min(130,Math.max(FX,80)*0.8|0);
-    if(x>_rmx-_hw&&x<_rmx+_hw&&y>460&&y<565){
-      Sfx.play('deploy');
-      this.startTrans(ST.SELECT,{dur:48,onMid:()=>{this.selPage=clamp(Math.floor(Progress.hi/20),0,4);}});
-    }}
   },
 
   // ホームで流派を直接切り替える（即保存）
@@ -2045,59 +2054,126 @@ const G = {
     ctx.font='11px Arial'; ctx.fillStyle='#5a5a6e';
     ctx.fillText('s h i n o b i   t h e   w o r l d', CW/2, 334);
     ctx.restore();
-    // ── 右エリア中心X
+    // ── 右エリア：属性パネル＋出陣ボタンを1つの外枠で統合
     const rmx=CW-Math.max(FX*0.5,80);
-    // ── 属性パネル（出陣ボタン上・幅を揃える）
     {
-      const pw=Math.min(260,Math.max(FX,80)*1.6|0), ph=168;
-      const px=rmx-pw/2, py=170;
+      const fw=Math.min(260,Math.max(FX,80)*1.6|0); // 外枠の幅
+      const fx2=rmx-fw/2;
+      const outerY=140, outerH=490; // 外枠（上端〜下端）
+      const gap=12; // 内部の余白
+      // 属性パネルの高さ
+      const atH=240;
+      // 出陣ボタンの高さ
+      const btnH=82;
+      // 実際の配置
+      const atY=outerY+gap;
+      const btnY=outerY+outerH-gap-btnH;
+
+      // ── 外枠
       ctx.save();
-      // パネル背景
-      ctx.fillStyle='rgba(8,10,20,0.82)'; ctx.fillRect(px,py,pw,ph);
+      ctx.fillStyle='rgba(6,8,18,0.65)';
+      ctx.fillRect(fx2,outerY,fw,outerH);
       ctx.strokeStyle=ce.col; ctx.lineWidth=1.5;
-      ctx.shadowColor=ce.glow; ctx.shadowBlur=10;
-      ctx.strokeRect(px,py,pw,ph);
+      ctx.shadowColor=ce.glow; ctx.shadowBlur=12;
+      ctx.strokeRect(fx2,outerY,fw,outerH);
       ctx.shadowBlur=0;
-      // 内枠
-      ctx.strokeStyle=`rgba(${hexToRgb(ce.col).r},${hexToRgb(ce.col).g},${hexToRgb(ce.col).b},0.2)`;
-      ctx.lineWidth=1; ctx.strokeRect(px+5,py+5,pw-10,ph-10);
-      // 属性漢字（大）
-      ctx.font='bold 62px '+FJ; ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillStyle=ce.col; ctx.shadowColor=ce.glow; ctx.shadowBlur=24;
-      ctx.fillText(ce.kanji, px+50, py+ph/2+4);
+      ctx.strokeStyle=`rgba(${hexToRgb(ce.col).r},${hexToRgb(ce.col).g},${hexToRgb(ce.col).b},0.18)`;
+      ctx.lineWidth=1; ctx.strokeRect(fx2+4,outerY+4,fw-8,outerH-8);
+      // コーナー飾り（外枠）
+      ctx.strokeStyle=ce.col; ctx.lineWidth=2;
+      for(const [cx2,cy2,sx,sy] of [[fx2+2,outerY+2,1,1],[fx2+fw-2,outerY+2,-1,1],[fx2+2,outerY+outerH-2,1,-1],[fx2+fw-2,outerY+outerH-2,-1,-1]]){
+        ctx.beginPath(); ctx.moveTo(cx2+sx*16,cy2); ctx.lineTo(cx2,cy2); ctx.lineTo(cx2,cy2+sy*16); ctx.stroke();
+      }
+      ctx.restore();
+
+      // ── 属性パネル（外枠内・上部）
+      ctx.save();
+      // 属性漢字（左側・大）
+      ctx.font='bold 80px '+FJ; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillStyle=ce.col; ctx.shadowColor=ce.glow; ctx.shadowBlur=30;
+      ctx.fillText(ce.kanji, fx2+52, atY+atH/2+4);
       ctx.shadowBlur=0; ctx.textBaseline='alphabetic';
-      // 縦区切り
-      ctx.strokeStyle=`rgba(${hexToRgb(ce.col).r},${hexToRgb(ce.col).g},${hexToRgb(ce.col).b},0.25)`;
+      // 縦区切り線
+      ctx.strokeStyle=`rgba(${hexToRgb(ce.col).r},${hexToRgb(ce.col).g},${hexToRgb(ce.col).b},0.3)`;
       ctx.lineWidth=1;
-      ctx.beginPath(); ctx.moveTo(px+90,py+12); ctx.lineTo(px+90,py+ph-12); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(fx2+98,atY+14); ctx.lineTo(fx2+98,atY+atH-14); ctx.stroke();
       // 属性名
-      ctx.font='bold 21px '+FJ; ctx.textAlign='left'; ctx.fillStyle=WASHI;
-      ctx.shadowColor=ce.glow; ctx.shadowBlur=6;
-      ctx.fillText(ce.name, px+102, py+40);
+      ctx.font='bold 26px '+FJ; ctx.textAlign='left'; ctx.fillStyle=WASHI;
+      ctx.shadowColor=ce.glow; ctx.shadowBlur=8;
+      ctx.fillText(ce.name, fx2+110, atY+44);
       ctx.shadowBlur=0;
       // 効果名
       if(ce.fxName){
-        ctx.font='bold 13px '+FJ; ctx.fillStyle=ce.col;
+        ctx.font='bold 15px '+FJ; ctx.fillStyle=ce.col;
         ctx.shadowColor=ce.glow; ctx.shadowBlur=4;
-        ctx.fillText('【'+ce.fxName+'】', px+102, py+66);
+        ctx.fillText('【'+ce.fxName+'】', fx2+110, atY+78);
         ctx.shadowBlur=0;
         // 効果説明（折り返し）
-        ctx.font='12px '+FJ; ctx.fillStyle='#C8BFA8';
-        const desc=ce.fxDesc||''; const mw=pw-108;
+        ctx.font='14px '+FJ; ctx.fillStyle='#C8BFA8';
+        const desc=ce.fxDesc||''; const mw=fw-118;
         let line='',lines=[],wds=desc.split('');
         for(const c of wds){ if(ctx.measureText(line+c).width>mw){lines.push(line);line=c;}else line+=c; }
         if(line)lines.push(line);
-        lines.slice(0,3).forEach((l,i)=>ctx.fillText(l,px+102,py+90+i*18));
+        lines.slice(0,4).forEach((l,i)=>ctx.fillText(l,fx2+110,atY+108+i*22));
       } else {
-        ctx.font='12px '+FJ; ctx.fillStyle='#C8BFA8';
-        ctx.fillText(ce.desc||'', px+102, py+76);
-      }
-      // コーナー飾り
-      ctx.strokeStyle=ce.col; ctx.lineWidth=1.5;
-      for(const [cx2,cy2,sx,sy] of [[px+2,py+2,1,1],[px+pw-2,py+2,-1,1],[px+2,py+ph-2,1,-1],[px+pw-2,py+ph-2,-1,-1]]){
-        ctx.beginPath(); ctx.moveTo(cx2+sx*14,cy2); ctx.lineTo(cx2,cy2); ctx.lineTo(cx2,cy2+sy*14); ctx.stroke();
+        ctx.font='14px '+FJ; ctx.fillStyle='#C8BFA8';
+        ctx.fillText(ce.desc||'', fx2+110, atY+86);
       }
       ctx.restore();
+
+      // 属性パネルとボタンの区切り線
+      ctx.save();
+      ctx.strokeStyle=`rgba(${hexToRgb(ce.col).r},${hexToRgb(ce.col).g},${hexToRgb(ce.col).b},0.2)`;
+      ctx.lineWidth=1; ctx.setLineDash([4,6]);
+      ctx.beginPath(); ctx.moveTo(fx2+12,atY+atH+gap); ctx.lineTo(fx2+fw-12,atY+atH+gap); ctx.stroke();
+      ctx.setLineDash([]); ctx.restore();
+
+      // ── 出陣ボタン（外枠内・下部）
+      {
+        const x=fx2+gap, y=btnY, w=fw-gap*2, h=btnH;
+        const bob=Math.sin(this.frame*0.05)*1.5;
+        const depth=5;
+        ctx.save(); ctx.translate(0,bob);
+        // 底面（影）
+        ctx.fillStyle='rgba(80,20,10,0.85)';
+        ctx.fillRect(x+depth,y+depth,w,h);
+        // 本体グラデーション
+        const bg=ctx.createLinearGradient(x,y,x,y+h);
+        bg.addColorStop(0,'rgba(100,44,30,0.98)');
+        bg.addColorStop(0.4,'rgba(70,30,18,0.98)');
+        bg.addColorStop(1,'rgba(44,16,10,0.98)');
+        ctx.fillStyle=bg; ctx.fillRect(x,y,w,h);
+        // 上辺ハイライト
+        const hlg=ctx.createLinearGradient(x,y,x,y+h*0.4);
+        hlg.addColorStop(0,'rgba(255,190,130,0.22)');
+        hlg.addColorStop(1,'rgba(255,190,130,0)');
+        ctx.fillStyle=hlg; ctx.fillRect(x,y,w,h*0.4);
+        // 外枠（朱）
+        ctx.strokeStyle=SHU; ctx.lineWidth=2.5;
+        ctx.shadowColor=SHU; ctx.shadowBlur=14;
+        ctx.strokeRect(x,y,w,h);
+        ctx.shadowBlur=0;
+        // 内枠（金）
+        ctx.strokeStyle='rgba(212,175,55,0.5)'; ctx.lineWidth=1;
+        ctx.strokeRect(x+5,y+5,w-10,h-10);
+        // 回転紋様
+        ctx.save();
+        ctx.translate(x+38,y+h/2); ctx.rotate(this.frame*0.04);
+        ctx.fillStyle=SHU; ctx.shadowColor=SHU; ctx.shadowBlur=10;
+        for(let k=0;k<4;k++){
+          ctx.rotate(Math.PI/2);
+          ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(11,2.8); ctx.lineTo(11,-2.8); ctx.closePath(); ctx.fill();
+        }
+        ctx.restore();
+        // テキスト
+        ctx.font='bold 36px '+FJ; ctx.textAlign='center'; ctx.fillStyle=WASHI;
+        ctx.shadowColor='rgba(245,233,201,0.5)'; ctx.shadowBlur=14;
+        ctx.fillText('出　陣', x+w/2+14, y+h/2+12);
+        ctx.shadowBlur=0;
+        ctx.restore();
+      }
+      // 出陣ボタンのヒット範囲をthisに保存（タップ判定に使用）
+      this._senjiRect={x:fx2,y:btnY-10,w:fw,h:btnH+20};
     }
     // ── 五遁の輪（左右タップで送る回転式カルーセル・大型版）
     const cy=490;
@@ -2169,55 +2245,6 @@ const G = {
     ctx.fillStyle=ce.col; ctx.shadowColor=ce.glow; ctx.shadowBlur=10;
     ctx.fillText(ce.name, CW/2, cy+78);
     ctx.shadowBlur=0; ctx.restore();
-    // ── 出陣ボタン（右エリア・3Dボタン）
-    {
-      const w=Math.min(260,Math.max(FX,80)*1.6|0), h=82;
-      const x=rmx-w/2, y=470;
-      const bob=Math.sin(this.frame*0.05)*1.5;
-      const depth=5; // 立体の厚み
-      ctx.save(); ctx.translate(0,bob);
-      // 底面（影・立体感）
-      ctx.fillStyle='rgba(80,20,10,0.9)';
-      ctx.fillRect(x+depth,y+depth,w,h);
-      // 本体グラデーション
-      const bg=ctx.createLinearGradient(x,y,x,y+h);
-      bg.addColorStop(0,'rgba(90,40,28,0.98)');
-      bg.addColorStop(0.45,'rgba(65,28,18,0.98)');
-      bg.addColorStop(1,'rgba(40,16,10,0.98)');
-      ctx.fillStyle=bg; ctx.fillRect(x,y,w,h);
-      // 上辺ハイライト（光沢）
-      const hl=ctx.createLinearGradient(x,y,x,y+h*0.35);
-      hl.addColorStop(0,'rgba(255,180,120,0.18)');
-      hl.addColorStop(1,'rgba(255,180,120,0)');
-      ctx.fillStyle=hl; ctx.fillRect(x,y,w,h*0.35);
-      // 外枠（朱）
-      ctx.strokeStyle=SHU; ctx.lineWidth=2.5;
-      ctx.shadowColor=SHU; ctx.shadowBlur=12;
-      ctx.strokeRect(x,y,w,h);
-      ctx.shadowBlur=0;
-      // 内枠（金）
-      ctx.strokeStyle='rgba(212,175,55,0.55)'; ctx.lineWidth=1;
-      ctx.strokeRect(x+5,y+5,w-10,h-10);
-      // 左の回転紋様
-      ctx.save();
-      ctx.translate(x+38,y+h/2); ctx.rotate(this.frame*0.04);
-      ctx.fillStyle=SHU; ctx.shadowColor=SHU; ctx.shadowBlur=10;
-      for(let k=0;k<4;k++){
-        ctx.rotate(Math.PI/2);
-        ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(11,2.8); ctx.lineTo(11,-2.8); ctx.closePath(); ctx.fill();
-      }
-      ctx.restore();
-      // メインテキスト
-      ctx.font='bold 34px '+FJ; ctx.textAlign='center'; ctx.fillStyle=WASHI;
-      ctx.shadowColor='rgba(245,233,201,0.5)'; ctx.shadowBlur=14;
-      ctx.fillText('出　陣', x+w/2+14, y+h/2+6);
-      ctx.shadowBlur=0;
-      // サブテキスト
-      ctx.font='bold 11px '+FJ; ctx.fillStyle='rgba(212,175,55,0.85)';
-      ctx.letterSpacing='2px';
-      ctx.fillText('▶  任務帖を開く  ◀', x+w/2+14, y+h-12);
-      ctx.restore();
-    }
     // 遊び方ボタン（左上）
     {
       const bx=30,by=28,bw=128,bh=44;
