@@ -2060,14 +2060,14 @@ const G = {
       const fw=Math.min(260,Math.max(FX,80)*1.6|0); // 外枠の幅
       const fx2=rmx-fw/2;
       const outerY=140, outerH=490; // 外枠（上端〜下端）
-      const gap=12; // 内部の余白
-      // 属性パネルの高さ
-      const atH=240;
-      // 出陣ボタンの高さ
-      const btnH=82;
-      // 実際の配置
-      const atY=outerY+gap;
-      const btnY=outerY+outerH-gap-btnH;
+      const gap=12; // 外枠の内側余白
+      const atH=240; // 属性パネルの高さ
+      const btnH=82; // 出陣ボタンの高さ
+      // 上中下の余白を均等に
+      const innerH=outerH-gap*2;
+      const spaceY=Math.round((innerH-atH-btnH)/3);
+      const atY=outerY+gap+spaceY;
+      const btnY=atY+atH+spaceY;
 
       // ── 外枠
       ctx.save();
@@ -2125,7 +2125,7 @@ const G = {
       ctx.save();
       ctx.strokeStyle=`rgba(${hexToRgb(ce.col).r},${hexToRgb(ce.col).g},${hexToRgb(ce.col).b},0.2)`;
       ctx.lineWidth=1; ctx.setLineDash([4,6]);
-      ctx.beginPath(); ctx.moveTo(fx2+12,atY+atH+gap); ctx.lineTo(fx2+fw-12,atY+atH+gap); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(fx2+12,atY+atH+spaceY/2); ctx.lineTo(fx2+fw-12,atY+atH+spaceY/2); ctx.stroke();
       ctx.setLineDash([]); ctx.restore();
 
       // ── 出陣ボタン（外枠内・下部）
@@ -2134,32 +2134,34 @@ const G = {
         const bob=Math.sin(this.frame*0.05)*1.5;
         const depth=5;
         ctx.save(); ctx.translate(0,bob);
-        // 底面（影）
-        ctx.fillStyle='rgba(80,20,10,0.85)';
+        // 属性カラーをベースに配色
+        const cr=hexToRgb(ce.col);
+        // 底面（影・属性色）
+        ctx.fillStyle=`rgba(${cr.r*0.3|0},${cr.g*0.3|0},${cr.b*0.3|0},0.9)`;
         ctx.fillRect(x+depth,y+depth,w,h);
-        // 本体グラデーション
+        // 本体グラデーション（属性色の暗めトーン）
         const bg=ctx.createLinearGradient(x,y,x,y+h);
-        bg.addColorStop(0,'rgba(100,44,30,0.98)');
-        bg.addColorStop(0.4,'rgba(70,30,18,0.98)');
-        bg.addColorStop(1,'rgba(44,16,10,0.98)');
+        bg.addColorStop(0,`rgba(${cr.r*0.46|0},${cr.g*0.46|0},${cr.b*0.46|0},0.98)`);
+        bg.addColorStop(0.45,`rgba(${cr.r*0.30|0},${cr.g*0.30|0},${cr.b*0.30|0},0.98)`);
+        bg.addColorStop(1,`rgba(${cr.r*0.18|0},${cr.g*0.18|0},${cr.b*0.18|0},0.98)`);
         ctx.fillStyle=bg; ctx.fillRect(x,y,w,h);
-        // 上辺ハイライト
+        // 上辺ハイライト（属性色の光沢）
         const hlg=ctx.createLinearGradient(x,y,x,y+h*0.4);
-        hlg.addColorStop(0,'rgba(255,190,130,0.22)');
-        hlg.addColorStop(1,'rgba(255,190,130,0)');
+        hlg.addColorStop(0,`rgba(${cr.r|0},${cr.g|0},${cr.b|0},0.28)`);
+        hlg.addColorStop(1,`rgba(${cr.r|0},${cr.g|0},${cr.b|0},0)`);
         ctx.fillStyle=hlg; ctx.fillRect(x,y,w,h*0.4);
-        // 外枠（朱）
-        ctx.strokeStyle=SHU; ctx.lineWidth=2.5;
-        ctx.shadowColor=SHU; ctx.shadowBlur=14;
+        // 外枠（属性色）
+        ctx.strokeStyle=ce.col; ctx.lineWidth=2.5;
+        ctx.shadowColor=ce.glow; ctx.shadowBlur=16;
         ctx.strokeRect(x,y,w,h);
         ctx.shadowBlur=0;
-        // 内枠（金）
-        ctx.strokeStyle='rgba(212,175,55,0.5)'; ctx.lineWidth=1;
+        // 内枠（属性色・薄め）
+        ctx.strokeStyle=`rgba(${cr.r|0},${cr.g|0},${cr.b|0},0.4)`; ctx.lineWidth=1;
         ctx.strokeRect(x+5,y+5,w-10,h-10);
-        // 回転紋様
+        // 回転紋様（属性色）
         ctx.save();
         ctx.translate(x+38,y+h/2); ctx.rotate(this.frame*0.04);
-        ctx.fillStyle=SHU; ctx.shadowColor=SHU; ctx.shadowBlur=10;
+        ctx.fillStyle=ce.col; ctx.shadowColor=ce.glow; ctx.shadowBlur=10;
         for(let k=0;k<4;k++){
           ctx.rotate(Math.PI/2);
           ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(11,2.8); ctx.lineTo(11,-2.8); ctx.closePath(); ctx.fill();
@@ -2167,7 +2169,7 @@ const G = {
         ctx.restore();
         // テキスト
         ctx.font='bold 36px '+FJ; ctx.textAlign='center'; ctx.fillStyle=WASHI;
-        ctx.shadowColor='rgba(245,233,201,0.5)'; ctx.shadowBlur=14;
+        ctx.shadowColor=ce.glow; ctx.shadowBlur=14;
         ctx.fillText('出　陣', x+w/2+14, y+h/2+12);
         ctx.shadowBlur=0;
         ctx.restore();
