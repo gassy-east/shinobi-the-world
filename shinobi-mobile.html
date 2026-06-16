@@ -1558,13 +1558,13 @@ const G = {
     // 遊び方（チュートリアル）← 左上
     if(x>30&&x<158&&y>28&&y<72){ Sfx.play('bounce'); this.helpTab=0; this.startTrans(ST.HELP); return; }
     // 流派カルーセル帯（左右で送る）
-    if(y>330&&y<480){
-      if(x<CW/2-90){this.elemSel=(this.elemSel+4)%5;this.applyElem();return;}
-      if(x>CW/2+90){this.elemSel=(this.elemSel+1)%5;this.applyElem();return;}
+    if(y>390&&y<580){
+      if(x<CW/2-100){this.elemSel=(this.elemSel+4)%5;this.applyElem();return;}
+      if(x>CW/2+100){this.elemSel=(this.elemSel+1)%5;this.applyElem();return;}
     }
     // 出陣札 → 重厚な音＋暗転フェードで任務帖へ
     {const _rmx=CW-Math.max(FX*0.5,80),_hw=Math.min(130,Math.max(FX,80)*0.8|0);
-    if(x>_rmx-_hw&&x<_rmx+_hw&&y>430&&y<522){
+    if(x>_rmx-_hw&&x<_rmx+_hw&&y>410&&y<510){
       Sfx.play('deploy');
       this.startTrans(ST.SELECT,{dur:48,onMid:()=>{this.selPage=clamp(Math.floor(Progress.hi/20),0,4);}});
     }}
@@ -1752,26 +1752,102 @@ const G = {
   // 遠景の城（シルエット）
   rCastle(ctx,bx,by){
     ctx.save(); ctx.translate(bx,by);
-    ctx.fillStyle='#0c0e1f';
+    // 霞・地霧
+    const mist=ctx.createRadialGradient(0,0,0,0,0,220);
+    mist.addColorStop(0,'rgba(160,175,210,0.10)'); mist.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=mist; ctx.fillRect(-220,-30,440,60);
+    // 石垣の基礎（台形）
+    ctx.fillStyle='#151828';
     ctx.beginPath();
-    ctx.moveTo(-95,150); ctx.lineTo(-70,96); ctx.lineTo(70,96); ctx.lineTo(95,150); ctx.closePath(); ctx.fill();
-    const tier=(w,yTop,h)=>{
+    ctx.moveTo(-220,0); ctx.lineTo(-170,-90); ctx.lineTo(170,-90); ctx.lineTo(220,0);
+    ctx.closePath(); ctx.fill();
+    // 石垣の目地
+    ctx.save(); ctx.strokeStyle='rgba(60,70,110,0.7)'; ctx.lineWidth=1;
+    for(let gy=-80;gy<0;gy+=18){
+      ctx.beginPath(); ctx.moveTo(-220+(gy+80)*0.55,gy); ctx.lineTo(220-(gy+80)*0.55,gy); ctx.stroke();
+    }
+    for(let i=0;i<8;i++){
+      const x=-170+i*48; ctx.beginPath(); ctx.moveTo(x,-90); ctx.lineTo(x+30,0); ctx.stroke();
+    }
+    ctx.restore();
+    // 石垣上の白塀（白い壁）
+    ctx.fillStyle='rgba(28,30,48,0.9)';
+    ctx.fillRect(-165,-108,330,20);
+    ctx.fillStyle='rgba(240,235,220,0.15)';
+    ctx.fillRect(-165,-108,330,4);
+    // 層の描画
+    const tier=(w,yTop,h,roofD=28)=>{
+      ctx.fillStyle='#0d0f1e';
       ctx.fillRect(-w/2,yTop,w,h);
+      // 瓦屋根（切妻）
       ctx.beginPath();
-      ctx.moveTo(-w/2-16,yTop);
-      ctx.quadraticCurveTo(-w/4,yTop-7,0,yTop-21);
-      ctx.quadraticCurveTo(w/4,yTop-7,w/2+16,yTop);
-      ctx.closePath(); ctx.fill();
+      ctx.moveTo(-w/2-26,yTop);
+      ctx.quadraticCurveTo(-w/4,yTop-roofD*0.4,0,yTop-roofD);
+      ctx.quadraticCurveTo(w/4,yTop-roofD*0.4,w/2+26,yTop);
+      ctx.closePath();
+      ctx.fillStyle='#181c32'; ctx.fill();
+      // 軒の金縁
+      ctx.save(); ctx.strokeStyle='rgba(200,165,60,0.45)'; ctx.lineWidth=2;
+      ctx.beginPath();
+      ctx.moveTo(-w/2-26,yTop);
+      ctx.quadraticCurveTo(-w/4,yTop-roofD*0.4,0,yTop-roofD);
+      ctx.quadraticCurveTo(w/4,yTop-roofD*0.4,w/2+26,yTop);
+      ctx.stroke();
+      ctx.restore();
+      // 破風の白線
+      ctx.save(); ctx.strokeStyle='rgba(240,235,215,0.12)'; ctx.lineWidth=1;
+      ctx.strokeRect(-w/2,yTop,w,h); ctx.restore();
     };
-    tier(120,40,56);
-    tier(90,-4,34);
-    tier(62,-42,30);
-    ctx.fillRect(-2,-72,4,10);
-    const win=(x,y,ph)=>{
-      ctx.fillStyle=`rgba(255,196,107,${(0.35+0.3*Math.sin(this.frame*0.04+ph)).toFixed(2)})`;
-      ctx.fillRect(x,y,4,5);
+    tier(220,-108,76,36);
+    tier(168,-180,64,32);
+    tier(120,-242,54,28);
+    tier(80,-294,44,24);
+    tier(46,-336,34,20);
+    // 尖塔
+    ctx.fillStyle='#10121e';
+    ctx.beginPath(); ctx.moveTo(0,-382); ctx.lineTo(-12,-336); ctx.lineTo(12,-336); ctx.closePath(); ctx.fill();
+    // 尖塔の宝珠
+    ctx.fillStyle='rgba(212,175,55,0.8)'; ctx.shadowColor='#D4AF37'; ctx.shadowBlur=14;
+    ctx.beginPath(); ctx.arc(0,-384,5,0,PI2); ctx.fill();
+    ctx.shadowBlur=0;
+    // 窓の灯り
+    const win=(x,y,ph,sz=5)=>{
+      const al=(0.38+0.34*Math.sin(this.frame*0.04+ph)).toFixed(2);
+      ctx.fillStyle=`rgba(255,200,100,${al})`;
+      ctx.fillRect(x-sz/2,y-sz*0.8,sz,sz);
+      // 光のにじみ
+      const gl=ctx.createRadialGradient(x,y-sz*0.3,0,x,y-sz*0.3,sz*2.5);
+      gl.addColorStop(0,`rgba(255,200,100,${(al*0.5).toFixed(2)})`);
+      gl.addColorStop(1,'rgba(255,200,100,0)');
+      ctx.fillStyle=gl; ctx.fillRect(x-sz*2.5,y-sz*3,sz*5,sz*5);
     };
-    win(-22,58,0); win(14,62,2.1); win(-8,8,4.2); win(6,-30,1.3);
+    win(-55,-70,0,6); win(30,-72,2.1,6); win(60,-74,3.8,5);
+    win(-30,-140,4.2,5); win(22,-143,1.3,5); win(-50,-143,2.7,5);
+    win(-14,-205,3.0,5); win(16,-208,0.8,5);
+    win(-6,-260,2.2,4); win(6,-262,4.5,4);
+    win(0,-310,1.6,4);
+    // 両脇の松（大）
+    for(const sx of [-1,1]){
+      const tx=sx*195;
+      ctx.fillStyle='rgba(8,18,12,0.88)';
+      // 幹
+      ctx.fillRect(tx-sx*5,-100,10,100);
+      // 枝葉（三段）
+      const lv=(cy2,hw,ht)=>{
+        ctx.beginPath();
+        ctx.moveTo(tx,cy2-ht);
+        ctx.lineTo(tx-hw,cy2); ctx.lineTo(tx+hw,cy2);
+        ctx.closePath(); ctx.fill();
+      };
+      lv(-60,42,28); lv(-100,54,32); lv(-148,64,36); lv(-200,70,38);
+      // 葉のハイライト
+      ctx.fillStyle='rgba(20,40,18,0.6)';
+      lv(-75,30,18); lv(-118,38,22); lv(-162,44,26);
+    }
+    // 麓の霧（重ね）
+    const base=ctx.createLinearGradient(0,-30,0,0);
+    base.addColorStop(0,'rgba(140,155,195,0.07)'); base.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=base; ctx.fillRect(-240,-30,480,30);
     ctx.restore();
   },
 
@@ -1834,7 +1910,7 @@ const G = {
     ctx.beginPath(); ctx.ellipse(((cx1+CW*0.6)%(CW+360))-180,my-22,80,10,-0.03,0,PI2); ctx.fill();
     ctx.restore();
     // ── 遠景（城は左エリア）
-    this.rCastle(ctx, Math.round(lmx*0.9), CH-150);
+    this.rCastle(ctx, Math.round(lmx), CH+4);
     ctx.fillStyle='rgba(180,190,220,0.045)';
     const fx=(this.frame*0.2)%(CW+500)-250;
     ctx.beginPath(); ctx.ellipse(fx,CH-200,240,18,0,0,PI2); ctx.fill();
@@ -1869,19 +1945,73 @@ const G = {
     ctx.font='17px '+FJ; ctx.textAlign='center'; ctx.fillStyle='#CFC5AC';
     ctx.fillText('― 月下に、時を止める ―', CW/2, 312);
     ctx.font='11px Arial'; ctx.fillStyle='#5a5a6e';
-    ctx.fillText('S H I N O B I   ·   T I M E S T O P   ·   携帯版', CW/2, 334);
+    ctx.fillText('s h i n o b i   t h e   w o r l d', CW/2, 334);
     ctx.restore();
-    // ── 五遁の輪（左右タップで送る回転式カルーセル）
-    const cy=414;
+    // ── 右エリア中心X
+    const rmx=CW-Math.max(FX*0.5,80);
+    // ── 右上：属性パネル
+    {
+      const pw=Math.min(300,Math.max(FX*0.95,120)|0), ph=196;
+      const px=rmx-pw/2, py=28;
+      ctx.save();
+      // パネル背景
+      ctx.fillStyle='rgba(8,10,20,0.82)'; ctx.fillRect(px,py,pw,ph);
+      ctx.strokeStyle=ce.col; ctx.lineWidth=1.5;
+      ctx.shadowColor=ce.glow; ctx.shadowBlur=10;
+      ctx.strokeRect(px,py,pw,ph);
+      ctx.shadowBlur=0;
+      // 内枠
+      ctx.strokeStyle=`rgba(${hexToRgb(ce.col).r},${hexToRgb(ce.col).g},${hexToRgb(ce.col).b},0.2)`;
+      ctx.lineWidth=1; ctx.strokeRect(px+5,py+5,pw-10,ph-10);
+      // 属性漢字（大）
+      ctx.font='bold 72px '+FJ; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillStyle=ce.col; ctx.shadowColor=ce.glow; ctx.shadowBlur=24;
+      ctx.fillText(ce.kanji, px+58, py+ph/2+4);
+      ctx.shadowBlur=0; ctx.textBaseline='alphabetic';
+      // 縦区切り
+      ctx.strokeStyle=`rgba(${hexToRgb(ce.col).r},${hexToRgb(ce.col).g},${hexToRgb(ce.col).b},0.25)`;
+      ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(px+100,py+14); ctx.lineTo(px+100,py+ph-14); ctx.stroke();
+      // 属性名
+      ctx.font='bold 24px '+FJ; ctx.textAlign='left'; ctx.fillStyle=WASHI;
+      ctx.shadowColor=ce.glow; ctx.shadowBlur=6;
+      ctx.fillText(ce.name, px+112, py+52);
+      ctx.shadowBlur=0;
+      // 効果名
+      if(ce.fxName){
+        ctx.font='bold 14px '+FJ; ctx.fillStyle=ce.col;
+        ctx.shadowColor=ce.glow; ctx.shadowBlur=4;
+        ctx.fillText('【'+ce.fxName+'】', px+112, py+82);
+        ctx.shadowBlur=0;
+        // 効果説明（2行折り返し）
+        ctx.font='13px '+FJ; ctx.fillStyle='#C8BFA8';
+        const desc=ce.fxDesc||''; const mw=pw-120;
+        let line='',lines=[],wds=desc.split('');
+        for(const c of wds){ if(ctx.measureText(line+c).width>mw){lines.push(line);line=c;}else line+=c; }
+        if(line)lines.push(line);
+        lines.slice(0,3).forEach((l,i)=>ctx.fillText(l,px+112,py+108+i*20));
+      } else {
+        ctx.font='13px '+FJ; ctx.fillStyle='#C8BFA8';
+        ctx.fillText(ce.desc||'', px+112, py+90);
+      }
+      // コーナー飾り
+      ctx.strokeStyle=ce.col; ctx.lineWidth=1.5;
+      for(const [cx2,cy2,sx,sy] of [[px+2,py+2,1,1],[px+pw-2,py+2,-1,1],[px+2,py+ph-2,1,-1],[px+pw-2,py+ph-2,-1,-1]]){
+        ctx.beginPath(); ctx.moveTo(cx2+sx*14,cy2); ctx.lineTo(cx2,cy2); ctx.lineTo(cx2,cy2+sy*14); ctx.stroke();
+      }
+      ctx.restore();
+    }
+    // ── 五遁の輪（左右タップで送る回転式カルーセル・大型版）
+    const cy=490;
     this._elemPos=this._elemPos??this.elemSel;
     {
       let dp=(this.elemSel-this._elemPos)%5;
       if(dp>2.5)dp-=5; if(dp<-2.5)dp+=5;
       this._elemPos=((this._elemPos+dp*0.16)%5+5)%5;
     }
-    const pool=ctx.createRadialGradient(CW/2,cy,8,CW/2,cy,130);
-    pool.addColorStop(0,A(0.17)); pool.addColorStop(1,A(0));
-    ctx.fillStyle=pool; ctx.fillRect(CW/2-150,cy-95,300,180);
+    const pool=ctx.createRadialGradient(CW/2,cy,8,CW/2,cy,180);
+    pool.addColorStop(0,A(0.20)); pool.addColorStop(1,A(0));
+    ctx.fillStyle=pool; ctx.fillRect(CW/2-210,cy-130,420,250);
     const ring=[];
     ELEM_KEYS.forEach((k,i)=>{
       let d=(i-this._elemPos)%5;
@@ -1893,28 +2023,28 @@ const G = {
       const g=GOTON[o.k];
       const ad=Math.abs(o.d);
       if(ad>2.4)continue;
-      const x=CW/2+o.d*116;
-      const sc=Math.max(0.5,1.16-0.26*ad);
-      const al=Math.max(0.16,1-0.45*ad);
-      const y=cy-(1-Math.min(ad,1))*6;
-      const r=36*sc;
+      const x=CW/2+o.d*140;
+      const sc=Math.max(0.48,1.18-0.28*ad);
+      const al=Math.max(0.14,1-0.45*ad);
+      const y=cy-(1-Math.min(ad,1))*8;
+      const r=52*sc;
       const on=ad<0.5;
       ctx.save();
       ctx.globalAlpha=al;
       ctx.translate(x,y);
       const ra=this.frame*(on?0.006:0.002)+o.i;
       ctx.rotate(ra);
-      if(on){ctx.shadowColor=g.glow; ctx.shadowBlur=22;}
-      ctx.strokeStyle=g.col; ctx.lineCap='round'; ctx.lineWidth=4*sc;
+      if(on){ctx.shadowColor=g.glow; ctx.shadowBlur=28;}
+      ctx.strokeStyle=g.col; ctx.lineCap='round'; ctx.lineWidth=5*sc;
       ctx.beginPath(); ctx.arc(0,0,r,0.4,PI2-0.2); ctx.stroke();
       ctx.shadowBlur=0;
       ctx.rotate(-ra);
-      ctx.fillStyle='rgba(10,12,24,0.88)';
-      ctx.beginPath(); ctx.arc(0,0,r-4,0,PI2); ctx.fill();
-      ctx.font='bold '+Math.floor(36*sc)+'px '+FJ; ctx.textAlign='center'; ctx.textBaseline='middle';
-      if(on){ctx.shadowColor=g.glow; ctx.shadowBlur=16;}
+      ctx.fillStyle='rgba(10,12,24,0.90)';
+      ctx.beginPath(); ctx.arc(0,0,r-5,0,PI2); ctx.fill();
+      ctx.font='bold '+Math.floor(50*sc)+'px '+FJ; ctx.textAlign='center'; ctx.textBaseline='middle';
+      if(on){ctx.shadowColor=g.glow; ctx.shadowBlur=20;}
       ctx.fillStyle=on?g.col:'#9a93a8';
-      ctx.fillText(g.kanji,0,2);
+      ctx.fillText(g.kanji,0,3);
       ctx.shadowBlur=0; ctx.textBaseline='alphabetic';
       ctx.restore();
     }
@@ -1924,39 +2054,27 @@ const G = {
       ctx.save();
       ctx.globalAlpha=(1-fp)*0.8;
       ctx.strokeStyle=ce.col; ctx.lineWidth=3;
-      ctx.beginPath(); ctx.arc(CW/2,cy,40+fp*48,0,PI2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(CW/2,cy,54+fp*60,0,PI2); ctx.stroke();
       ctx.restore();
     }
     this.uElemParts(ctx, CW/2, cy-4);
-    // 左右送りの矢（タップ域の目印）
+    // 左右送りの矢
     ctx.save();
     ctx.globalAlpha=0.4+0.25*Math.sin(this.frame*0.07);
     ctx.fillStyle=A(0.95);
-    ctx.beginPath(); ctx.moveTo(CW/2-222,cy); ctx.lineTo(CW/2-204,cy-11); ctx.lineTo(CW/2-204,cy+11); ctx.closePath(); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(CW/2+222,cy); ctx.lineTo(CW/2+204,cy-11); ctx.lineTo(CW/2+204,cy+11); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(CW/2-268,cy); ctx.lineTo(CW/2-248,cy-13); ctx.lineTo(CW/2-248,cy+13); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(CW/2+268,cy); ctx.lineTo(CW/2+248,cy-13); ctx.lineTo(CW/2+248,cy+13); ctx.closePath(); ctx.fill();
     ctx.restore();
-    // 銘
+    // 属性名（カルーセル下）
     ctx.save();
-    ctx.font='bold 19px '+FJ; ctx.textAlign='center';
+    ctx.font='bold 22px '+FJ; ctx.textAlign='center';
     ctx.fillStyle=ce.col; ctx.shadowColor=ce.glow; ctx.shadowBlur=10;
-    ctx.fillText(ce.name, CW/2, cy+72);
-    ctx.shadowBlur=0;
-    ctx.globalAlpha=0.9;
-    if(ce.fxName){ // 効果（署名効果＋小デメリット）を流派色で表示
-      ctx.font='bold 12px '+FJ; ctx.fillStyle=ce.col; ctx.shadowColor=ce.glow; ctx.shadowBlur=6;
-      ctx.fillText('【'+ce.fxName+'】 '+ce.fxDesc, CW/2, cy+92);
-      ctx.shadowBlur=0;
-    } else {
-      ctx.font='12px '+FJ; ctx.fillStyle='#CFC5AC';
-      ctx.fillText(ce.desc, CW/2, cy+92);
-    }
-    ctx.restore();
-    // ── 右エリア中心X
-    const rmx=CW-Math.max(FX*0.5,80);
-    // ── 出陣札（右エリア）
+    ctx.fillText(ce.name, CW/2, cy+78);
+    ctx.shadowBlur=0; ctx.restore();
+    // ── 出陣札（右エリア中央下）
     {
-      const w=Math.min(260,Math.max(FX,80)*1.6|0), h=72;
-      const x=rmx-w/2, y=440;
+      const w=Math.min(260,Math.max(FX,80)*1.6|0), h=80;
+      const x=rmx-w/2, y=420;
       const bob=Math.sin(this.frame*0.05)*2;
       ctx.save(); ctx.translate(0,bob);
       ctx.fillStyle='rgba(50,30,24,0.92)';
@@ -1965,17 +2083,19 @@ const G = {
       ctx.strokeStyle='rgba(212,175,55,0.45)'; ctx.lineWidth=1;
       ctx.strokeRect(x+5,y+5,w-10,h-10);
       ctx.save();
-      ctx.translate(x+32,y+36); ctx.rotate(this.frame*0.04);
+      ctx.translate(x+36,y+40); ctx.rotate(this.frame*0.04);
       ctx.fillStyle=SHU; ctx.shadowColor=SHU; ctx.shadowBlur=8;
       for(let k=0;k<4;k++){
         ctx.rotate(Math.PI/2);
-        ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(9,2.2); ctx.lineTo(9,-2.2); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(10,2.5); ctx.lineTo(10,-2.5); ctx.closePath(); ctx.fill();
       }
       ctx.restore();
-      ctx.font='bold 28px '+FJ; ctx.textAlign='center'; ctx.fillStyle=WASHI;
-      ctx.fillText('出　陣', x+w/2+12, y+36);
-      ctx.font='12px '+FJ; ctx.fillStyle='rgba(212,175,55,0.85)';
-      ctx.fillText('任務帖を開く', x+w/2+12, y+58);
+      ctx.font='bold 32px '+FJ; ctx.textAlign='center'; ctx.fillStyle=WASHI;
+      ctx.shadowColor='rgba(245,233,201,0.3)'; ctx.shadowBlur=8;
+      ctx.fillText('出　陣', x+w/2+14, y+46);
+      ctx.shadowBlur=0;
+      ctx.font='12px '+FJ; ctx.fillStyle='rgba(212,175,55,0.75)';
+      ctx.fillText('任務帖を開く', x+w/2+14, y+66);
       ctx.restore();
     }
     // 遊び方ボタン（左上）
@@ -1988,20 +2108,6 @@ const G = {
       ctx.fillText('遊 び 方', bx+bw/2, by+28);
       ctx.restore();
     }
-    // 進捗表示（右エリア）
-    if(Progress.hi>0){
-      ctx.save();
-      ctx.font='14px '+FJ; ctx.textAlign='center'; ctx.fillStyle=KIN;
-      ctx.fillText('達成　第'+kanjiNum(Progress.hi)+'幕まで', rmx, 534);
-      ctx.restore();
-    }
-    // 操作説明（右エリア・小文字）
-    ctx.save();
-    ctx.font='11px '+FJ; ctx.fillStyle='#4f4b62'; ctx.textAlign='center';
-    ctx.fillText('輪の左右をタップで流派切替', rmx, 574);
-    ctx.fillText('残命は一つ・任務帖から再挑戦', rmx, 592);
-    ctx.fillText('止まれば世界も止まる', rmx, 616);
-    ctx.restore();
     ctx.textAlign='left';
     this.rPetals(ctx);
   },
