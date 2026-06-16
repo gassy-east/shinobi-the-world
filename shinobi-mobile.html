@@ -1564,7 +1564,7 @@ const G = {
     }
     // 出陣札 → 重厚な音＋暗転フェードで任務帖へ
     {const _rmx=CW-Math.max(FX*0.5,80),_hw=Math.min(130,Math.max(FX,80)*0.8|0);
-    if(x>_rmx-_hw&&x<_rmx+_hw&&y>410&&y<510){
+    if(x>_rmx-_hw&&x<_rmx+_hw&&y>460&&y<565){
       Sfx.play('deploy');
       this.startTrans(ST.SELECT,{dur:48,onMid:()=>{this.selPage=clamp(Math.floor(Progress.hi/20),0,4);}});
     }}
@@ -1752,102 +1752,200 @@ const G = {
   // 遠景の城（シルエット）
   rCastle(ctx,bx,by){
     ctx.save(); ctx.translate(bx,by);
-    // 霞・地霧
-    const mist=ctx.createRadialGradient(0,0,0,0,0,220);
-    mist.addColorStop(0,'rgba(160,175,210,0.10)'); mist.addColorStop(1,'rgba(0,0,0,0)');
-    ctx.fillStyle=mist; ctx.fillRect(-220,-30,440,60);
-    // 石垣の基礎（台形）
-    ctx.fillStyle='#151828';
-    ctx.beginPath();
-    ctx.moveTo(-220,0); ctx.lineTo(-170,-90); ctx.lineTo(170,-90); ctx.lineTo(220,0);
-    ctx.closePath(); ctx.fill();
-    // 石垣の目地
-    ctx.save(); ctx.strokeStyle='rgba(60,70,110,0.7)'; ctx.lineWidth=1;
-    for(let gy=-80;gy<0;gy+=18){
-      ctx.beginPath(); ctx.moveTo(-220+(gy+80)*0.55,gy); ctx.lineTo(220-(gy+80)*0.55,gy); ctx.stroke();
-    }
-    for(let i=0;i<8;i++){
-      const x=-170+i*48; ctx.beginPath(); ctx.moveTo(x,-90); ctx.lineTo(x+30,0); ctx.stroke();
-    }
-    ctx.restore();
-    // 石垣上の白塀（白い壁）
-    ctx.fillStyle='rgba(28,30,48,0.9)';
-    ctx.fillRect(-165,-108,330,20);
-    ctx.fillStyle='rgba(240,235,220,0.15)';
-    ctx.fillRect(-165,-108,330,4);
-    // 層の描画
-    const tier=(w,yTop,h,roofD=28)=>{
-      ctx.fillStyle='#0d0f1e';
-      ctx.fillRect(-w/2,yTop,w,h);
-      // 瓦屋根（切妻）
-      ctx.beginPath();
-      ctx.moveTo(-w/2-26,yTop);
-      ctx.quadraticCurveTo(-w/4,yTop-roofD*0.4,0,yTop-roofD);
-      ctx.quadraticCurveTo(w/4,yTop-roofD*0.4,w/2+26,yTop);
-      ctx.closePath();
-      ctx.fillStyle='#181c32'; ctx.fill();
-      // 軒の金縁
-      ctx.save(); ctx.strokeStyle='rgba(200,165,60,0.45)'; ctx.lineWidth=2;
-      ctx.beginPath();
-      ctx.moveTo(-w/2-26,yTop);
-      ctx.quadraticCurveTo(-w/4,yTop-roofD*0.4,0,yTop-roofD);
-      ctx.quadraticCurveTo(w/4,yTop-roofD*0.4,w/2+26,yTop);
-      ctx.stroke();
-      ctx.restore();
-      // 破風の白線
-      ctx.save(); ctx.strokeStyle='rgba(240,235,215,0.12)'; ctx.lineWidth=1;
-      ctx.strokeRect(-w/2,yTop,w,h); ctx.restore();
-    };
-    tier(220,-108,76,36);
-    tier(168,-180,64,32);
-    tier(120,-242,54,28);
-    tier(80,-294,44,24);
-    tier(46,-336,34,20);
-    // 尖塔
-    ctx.fillStyle='#10121e';
-    ctx.beginPath(); ctx.moveTo(0,-382); ctx.lineTo(-12,-336); ctx.lineTo(12,-336); ctx.closePath(); ctx.fill();
-    // 尖塔の宝珠
-    ctx.fillStyle='rgba(212,175,55,0.8)'; ctx.shadowColor='#D4AF37'; ctx.shadowBlur=14;
-    ctx.beginPath(); ctx.arc(0,-384,5,0,PI2); ctx.fill();
-    ctx.shadowBlur=0;
-    // 窓の灯り
-    const win=(x,y,ph,sz=5)=>{
-      const al=(0.38+0.34*Math.sin(this.frame*0.04+ph)).toFixed(2);
-      ctx.fillStyle=`rgba(255,200,100,${al})`;
-      ctx.fillRect(x-sz/2,y-sz*0.8,sz,sz);
-      // 光のにじみ
-      const gl=ctx.createRadialGradient(x,y-sz*0.3,0,x,y-sz*0.3,sz*2.5);
-      gl.addColorStop(0,`rgba(255,200,100,${(al*0.5).toFixed(2)})`);
-      gl.addColorStop(1,'rgba(255,200,100,0)');
-      ctx.fillStyle=gl; ctx.fillRect(x-sz*2.5,y-sz*3,sz*5,sz*5);
-    };
-    win(-55,-70,0,6); win(30,-72,2.1,6); win(60,-74,3.8,5);
-    win(-30,-140,4.2,5); win(22,-143,1.3,5); win(-50,-143,2.7,5);
-    win(-14,-205,3.0,5); win(16,-208,0.8,5);
-    win(-6,-260,2.2,4); win(6,-262,4.5,4);
-    win(0,-310,1.6,4);
-    // 両脇の松（大）
-    for(const sx of [-1,1]){
-      const tx=sx*195;
-      ctx.fillStyle='rgba(8,18,12,0.88)';
+
+    // ── 松の木（リアル多層シルエット）
+    const pine=(tx,maxH,leafW)=>{
       // 幹
-      ctx.fillRect(tx-sx*5,-100,10,100);
-      // 枝葉（三段）
-      const lv=(cy2,hw,ht)=>{
+      const tg=ctx.createLinearGradient(tx-4,0,tx+4,0);
+      tg.addColorStop(0,'#2a1f0e'); tg.addColorStop(0.4,'#3a2a12'); tg.addColorStop(1,'#1a1208');
+      ctx.fillStyle=tg;
+      ctx.beginPath(); ctx.moveTo(tx-5,0); ctx.lineTo(tx-3,-maxH*0.18); ctx.lineTo(tx+3,-maxH*0.18); ctx.lineTo(tx+5,0); ctx.closePath(); ctx.fill();
+      // 枝葉（7層・下から上へ段々小さく）
+      const layers=7;
+      for(let i=0;i<layers;i++){
+        const t=i/(layers-1);
+        const ly=-maxH*(0.15+t*0.82);
+        const lw=leafW*(1.0-t*0.62);
+        const lh=maxH*0.14;
+        // 影面（暗い）
+        const sd=ctx.createLinearGradient(tx-lw,ly-lh,tx+lw,ly);
+        sd.addColorStop(0,'rgba(4,14,6,0.95)');
+        sd.addColorStop(0.5,'rgba(8,22,10,0.9)');
+        sd.addColorStop(1,'rgba(4,14,6,0.95)');
+        ctx.fillStyle=sd;
         ctx.beginPath();
-        ctx.moveTo(tx,cy2-ht);
-        ctx.lineTo(tx-hw,cy2); ctx.lineTo(tx+hw,cy2);
+        ctx.moveTo(tx,-ly>maxH*0.9?ly-lh*1.2:ly-lh);
+        ctx.bezierCurveTo(tx-lw*0.3,ly-lh*0.5,tx-lw,ly+lh*0.1,tx-lw*1.1,ly+lh*0.3);
+        ctx.lineTo(tx,ly+lh*0.5);
+        ctx.lineTo(tx+lw*1.1,ly+lh*0.3);
+        ctx.bezierCurveTo(tx+lw,ly+lh*0.1,tx+lw*0.3,ly-lh*0.5,tx,ly-lh);
         ctx.closePath(); ctx.fill();
-      };
-      lv(-60,42,28); lv(-100,54,32); lv(-148,64,36); lv(-200,70,38);
-      // 葉のハイライト
-      ctx.fillStyle='rgba(20,40,18,0.6)';
-      lv(-75,30,18); lv(-118,38,22); lv(-162,44,26);
+        // 光面（やや明るい中央）
+        const hl=ctx.createRadialGradient(tx,ly-lh*0.3,0,tx,ly-lh*0.3,lw*0.5);
+        hl.addColorStop(0,'rgba(18,46,20,0.7)');
+        hl.addColorStop(1,'rgba(18,46,20,0)');
+        ctx.fillStyle=hl;
+        ctx.beginPath();
+        ctx.moveTo(tx,ly-lh);
+        ctx.bezierCurveTo(tx-lw*0.3,ly-lh*0.5,tx-lw*0.6,ly,tx-lw*0.5,ly+lh*0.2);
+        ctx.lineTo(tx,ly+lh*0.4);
+        ctx.lineTo(tx+lw*0.5,ly+lh*0.2);
+        ctx.bezierCurveTo(tx+lw*0.6,ly,tx+lw*0.3,ly-lh*0.5,tx,ly-lh);
+        ctx.closePath(); ctx.fill();
+      }
+    };
+    pine(-200, 280, 72);
+    pine( 200, 260, 66);
+    pine(-150,  90, 38);
+    pine( 155,  85, 36);
+
+    // ── 石垣（石積み）
+    const drawStoneWall=(wx,wy,ww,wh)=>{
+      // 面
+      const wg=ctx.createLinearGradient(wx,wy,wx,wy+wh);
+      wg.addColorStop(0,'#252a3e'); wg.addColorStop(1,'#181c2c');
+      ctx.fillStyle=wg;
+      ctx.beginPath();
+      ctx.moveTo(wx,wy+wh); ctx.lineTo(wx+ww*0.12,wy);
+      ctx.lineTo(wx+ww-ww*0.12,wy); ctx.lineTo(wx+ww,wy+wh);
+      ctx.closePath(); ctx.fill();
+      // 石のブロック目地
+      ctx.save(); ctx.clip();
+      const bh2=20, gap=1;
+      for(let row=0,ry=wy+wh-bh2;ry>wy-bh2;ry-=bh2+gap,row++){
+        const off=row%2===0?0:28;
+        for(let cx3=wx-30+off;cx3<wx+ww+30;cx3+=56){
+          const bw2=54;
+          // 石の面
+          const sg=ctx.createLinearGradient(cx3,ry,cx3,ry+bh2);
+          sg.addColorStop(0,'rgba(58,65,90,0.7)');
+          sg.addColorStop(0.4,'rgba(42,48,70,0.8)');
+          sg.addColorStop(1,'rgba(28,32,50,0.9)');
+          ctx.fillStyle=sg; ctx.fillRect(cx3+gap,ry+gap,bw2-gap*2,bh2-gap*2);
+          // 石の上辺ハイライト
+          ctx.fillStyle='rgba(90,100,140,0.25)';
+          ctx.fillRect(cx3+gap,ry+gap,bw2-gap*2,3);
+          // 石の左辺ハイライト
+          ctx.fillStyle='rgba(90,100,140,0.15)';
+          ctx.fillRect(cx3+gap,ry+gap,3,bh2-gap*2);
+        }
+      }
+      ctx.restore();
+      // 石垣の輪郭
+      ctx.strokeStyle='rgba(40,45,70,0.8)'; ctx.lineWidth=1.5;
+      ctx.beginPath();
+      ctx.moveTo(wx,wy+wh); ctx.lineTo(wx+ww*0.12,wy);
+      ctx.lineTo(wx+ww-ww*0.12,wy); ctx.lineTo(wx+ww,wy+wh);
+      ctx.closePath(); ctx.stroke();
+    };
+    drawStoneWall(-200, -100, 400, 100);
+
+    // ── 城壁（石垣上の白壁）
+    ctx.fillStyle='rgba(22,24,40,0.95)';
+    ctx.fillRect(-168,-118,336,20);
+    // 鋸型の狭間（銃眼）
+    ctx.fillStyle='rgba(30,33,54,0.9)';
+    for(let mx=-160;mx<168;mx+=24){
+      ctx.fillRect(mx,-130,14,14);
     }
-    // 麓の霧（重ね）
-    const base=ctx.createLinearGradient(0,-30,0,0);
-    base.addColorStop(0,'rgba(140,155,195,0.07)'); base.addColorStop(1,'rgba(0,0,0,0)');
-    ctx.fillStyle=base; ctx.fillRect(-240,-30,480,30);
+    ctx.fillStyle='rgba(65,72,105,0.3)';
+    ctx.fillRect(-168,-132,336,2);
+
+    // ── 天守閣（多重層）
+    const tier=(w,yTop,h,roofEx=28,roofH=32)=>{
+      // 壁面グラデーション
+      const wg2=ctx.createLinearGradient(-w/2,yTop,w/2,yTop+h);
+      wg2.addColorStop(0,'#1a1d30'); wg2.addColorStop(1,'#0e1020');
+      ctx.fillStyle=wg2; ctx.fillRect(-w/2,yTop,w,h);
+      // 壁の縦スジ（木目風）
+      ctx.save(); ctx.globalAlpha=0.06;
+      for(let lx=-w/2+12;lx<w/2;lx+=16){
+        ctx.fillStyle='rgba(200,180,140,1)'; ctx.fillRect(lx,yTop,2,h);
+      }
+      ctx.restore();
+      // 屋根（瓦・反り屋根）
+      ctx.save();
+      const roofY=yTop;
+      // 瓦面
+      const rg=ctx.createLinearGradient(0,roofY-roofH,0,roofY+4);
+      rg.addColorStop(0,'#1e2236'); rg.addColorStop(0.6,'#14172a'); rg.addColorStop(1,'#0a0c18');
+      ctx.fillStyle=rg;
+      ctx.beginPath();
+      ctx.moveTo(-w/2-roofEx, roofY+4);
+      ctx.quadraticCurveTo(-w/4, roofY-roofH*0.28, 0, roofY-roofH);
+      ctx.quadraticCurveTo( w/4, roofY-roofH*0.28,  w/2+roofEx, roofY+4);
+      ctx.closePath(); ctx.fill();
+      // 屋根の影（下辺の暗め帯）
+      ctx.fillStyle='rgba(0,0,0,0.35)';
+      ctx.beginPath();
+      ctx.moveTo(-w/2-roofEx,roofY+4); ctx.lineTo(-w/2-roofEx,roofY+4);
+      ctx.quadraticCurveTo(-w/4,roofY+2,0,roofY+1);
+      ctx.quadraticCurveTo(w/4,roofY+2,w/2+roofEx,roofY+4);
+      ctx.lineTo(w/2+roofEx,roofY+10); ctx.lineTo(-w/2-roofEx,roofY+10);
+      ctx.closePath(); ctx.fill();
+      // 軒の輝き（金色ライン）
+      ctx.strokeStyle='rgba(210,175,60,0.5)'; ctx.lineWidth=1.8;
+      ctx.shadowColor='rgba(200,165,50,0.4)'; ctx.shadowBlur=6;
+      ctx.beginPath();
+      ctx.moveTo(-w/2-roofEx,roofY+4);
+      ctx.quadraticCurveTo(-w/4,roofY-roofH*0.28,0,roofY-roofH);
+      ctx.quadraticCurveTo(w/4,roofY-roofH*0.28,w/2+roofEx,roofY+4);
+      ctx.stroke(); ctx.shadowBlur=0;
+      // 鬼瓦（両端の突起）
+      ctx.fillStyle='rgba(28,32,52,0.95)';
+      ctx.beginPath(); ctx.arc(-w/2-roofEx,roofY+4,5,0,PI2); ctx.fill();
+      ctx.beginPath(); ctx.arc( w/2+roofEx,roofY+4,5,0,PI2); ctx.fill();
+      ctx.restore();
+      // 壁の輪郭
+      ctx.strokeStyle='rgba(80,90,130,0.2)'; ctx.lineWidth=1;
+      ctx.strokeRect(-w/2,yTop,w,h);
+    };
+    tier(230,-118,72, 32,38);
+    tier(175,-190,64, 28,34);
+    tier(126,-254,56, 24,30);
+    tier( 84,-308,46, 20,26);
+    tier( 50,-352,36, 16,22);
+
+    // ── 大棟（最上部）・尖塔
+    const tg2=ctx.createLinearGradient(0,-395,0,-352);
+    tg2.addColorStop(0,'#0a0c18'); tg2.addColorStop(1,'#14172a');
+    ctx.fillStyle=tg2;
+    ctx.beginPath(); ctx.moveTo(0,-400); ctx.lineTo(-16,-352); ctx.lineTo(16,-352); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle='rgba(210,175,60,0.4)'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(0,-400); ctx.lineTo(-16,-352); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,-400); ctx.lineTo(16,-352); ctx.stroke();
+    // 宝珠
+    const sg2=ctx.createRadialGradient(-2,-403,0,-2,-403,7);
+    sg2.addColorStop(0,'rgba(255,215,80,0.95)'); sg2.addColorStop(0.5,'rgba(200,160,40,0.8)'); sg2.addColorStop(1,'rgba(160,120,20,0)');
+    ctx.fillStyle=sg2; ctx.shadowColor='#FFD740'; ctx.shadowBlur=18;
+    ctx.beginPath(); ctx.arc(0,-402,6,0,PI2); ctx.fill(); ctx.shadowBlur=0;
+
+    // ── 窓・灯り
+    const win=(x,y,ph,sz=5)=>{
+      const al=(0.42+0.36*Math.sin(this.frame*0.04+ph)).toFixed(2);
+      // 格子窓の枠
+      ctx.fillStyle='rgba(20,22,36,0.9)';
+      ctx.fillRect(x-sz*0.8,y-sz,sz*1.6,sz*1.4);
+      // 暖色の灯り
+      ctx.fillStyle=`rgba(255,195,90,${al})`;
+      ctx.fillRect(x-sz*0.5,y-sz*0.85,sz,sz*0.9);
+      // 光の滲み（グロー）
+      const gl=ctx.createRadialGradient(x,y-sz*0.3,0,x,y-sz*0.3,sz*4);
+      gl.addColorStop(0,`rgba(255,195,90,${(+al*0.45).toFixed(2)})`);
+      gl.addColorStop(1,'rgba(255,195,90,0)');
+      ctx.fillStyle=gl; ctx.fillRect(x-sz*4,y-sz*4,sz*8,sz*8);
+    };
+    win(-68,-80, 0.0,6); win(-28,-82,2.1,6); win(24,-80,3.8,6); win(64,-82,1.4,6);
+    win(-46,-154,4.2,5); win( 0,-156,1.3,5); win(42,-154,2.7,5);
+    win(-22,-212,3.0,5); win(18,-214,0.8,5);
+    win(-10,-268,2.2,4); win( 8,-270,4.5,4);
+    win(  0,-316,1.6,4);
+
+    // ── 霞・朝霧（麓）
+    const fog=ctx.createLinearGradient(0,-60,0,0);
+    fog.addColorStop(0,'rgba(150,165,205,0.09)'); fog.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.fillStyle=fog; ctx.fillRect(-250,-60,500,62);
+
     ctx.restore();
   },
 
@@ -1952,7 +2050,7 @@ const G = {
     // ── 属性パネル（出陣ボタン上・幅を揃える）
     {
       const pw=Math.min(260,Math.max(FX,80)*1.6|0), ph=168;
-      const px=rmx-pw/2, py=240;
+      const px=rmx-pw/2, py=170;
       ctx.save();
       // パネル背景
       ctx.fillStyle='rgba(8,10,20,0.82)'; ctx.fillRect(px,py,pw,ph);
@@ -2071,31 +2169,53 @@ const G = {
     ctx.fillStyle=ce.col; ctx.shadowColor=ce.glow; ctx.shadowBlur=10;
     ctx.fillText(ce.name, CW/2, cy+78);
     ctx.shadowBlur=0; ctx.restore();
-    // ── 出陣札（右エリア中央下）
+    // ── 出陣ボタン（右エリア・3Dボタン）
     {
-      const w=Math.min(260,Math.max(FX,80)*1.6|0), h=80;
-      const x=rmx-w/2, y=420;
-      const bob=Math.sin(this.frame*0.05)*2;
+      const w=Math.min(260,Math.max(FX,80)*1.6|0), h=82;
+      const x=rmx-w/2, y=470;
+      const bob=Math.sin(this.frame*0.05)*1.5;
+      const depth=5; // 立体の厚み
       ctx.save(); ctx.translate(0,bob);
-      ctx.fillStyle='rgba(50,30,24,0.92)';
-      ctx.fillRect(x,y,w,h);
-      ctx.strokeStyle=SHU; ctx.lineWidth=2; ctx.strokeRect(x,y,w,h);
-      ctx.strokeStyle='rgba(212,175,55,0.45)'; ctx.lineWidth=1;
+      // 底面（影・立体感）
+      ctx.fillStyle='rgba(80,20,10,0.9)';
+      ctx.fillRect(x+depth,y+depth,w,h);
+      // 本体グラデーション
+      const bg=ctx.createLinearGradient(x,y,x,y+h);
+      bg.addColorStop(0,'rgba(90,40,28,0.98)');
+      bg.addColorStop(0.45,'rgba(65,28,18,0.98)');
+      bg.addColorStop(1,'rgba(40,16,10,0.98)');
+      ctx.fillStyle=bg; ctx.fillRect(x,y,w,h);
+      // 上辺ハイライト（光沢）
+      const hl=ctx.createLinearGradient(x,y,x,y+h*0.35);
+      hl.addColorStop(0,'rgba(255,180,120,0.18)');
+      hl.addColorStop(1,'rgba(255,180,120,0)');
+      ctx.fillStyle=hl; ctx.fillRect(x,y,w,h*0.35);
+      // 外枠（朱）
+      ctx.strokeStyle=SHU; ctx.lineWidth=2.5;
+      ctx.shadowColor=SHU; ctx.shadowBlur=12;
+      ctx.strokeRect(x,y,w,h);
+      ctx.shadowBlur=0;
+      // 内枠（金）
+      ctx.strokeStyle='rgba(212,175,55,0.55)'; ctx.lineWidth=1;
       ctx.strokeRect(x+5,y+5,w-10,h-10);
+      // 左の回転紋様
       ctx.save();
-      ctx.translate(x+36,y+40); ctx.rotate(this.frame*0.04);
-      ctx.fillStyle=SHU; ctx.shadowColor=SHU; ctx.shadowBlur=8;
+      ctx.translate(x+38,y+h/2); ctx.rotate(this.frame*0.04);
+      ctx.fillStyle=SHU; ctx.shadowColor=SHU; ctx.shadowBlur=10;
       for(let k=0;k<4;k++){
         ctx.rotate(Math.PI/2);
-        ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(10,2.5); ctx.lineTo(10,-2.5); ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(11,2.8); ctx.lineTo(11,-2.8); ctx.closePath(); ctx.fill();
       }
       ctx.restore();
-      ctx.font='bold 32px '+FJ; ctx.textAlign='center'; ctx.fillStyle=WASHI;
-      ctx.shadowColor='rgba(245,233,201,0.3)'; ctx.shadowBlur=8;
-      ctx.fillText('出　陣', x+w/2+14, y+46);
+      // メインテキスト
+      ctx.font='bold 34px '+FJ; ctx.textAlign='center'; ctx.fillStyle=WASHI;
+      ctx.shadowColor='rgba(245,233,201,0.5)'; ctx.shadowBlur=14;
+      ctx.fillText('出　陣', x+w/2+14, y+h/2+6);
       ctx.shadowBlur=0;
-      ctx.font='12px '+FJ; ctx.fillStyle='rgba(212,175,55,0.75)';
-      ctx.fillText('任務帖を開く', x+w/2+14, y+66);
+      // サブテキスト
+      ctx.font='bold 11px '+FJ; ctx.fillStyle='rgba(212,175,55,0.85)';
+      ctx.letterSpacing='2px';
+      ctx.fillText('▶  任務帖を開く  ◀', x+w/2+14, y+h-12);
       ctx.restore();
     }
     // 遊び方ボタン（左上）
