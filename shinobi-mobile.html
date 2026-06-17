@@ -231,7 +231,7 @@ const FJ = '"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif'; // 和風
 const WASHI = '#F2E8D5', SHU = '#E84A3F', SUMI = '#11131c', KIN = '#D4AF37';
 
 const T = { EMPTY:0, WALL:1, DEST:2, PIT:3 };
-const ST = { TITLE:'title', SELECT:'select', HELP:'help', PLAY:'play', PAUSE:'pause', CLEAR:'clear', OVER:'over' };
+const ST = { TITLE:'title', SELECT:'select', HELP:'help', PLAY:'play', PAUSE:'pause', CLEAR:'clear', OVER:'over', ENDLESSOVER:'endlessover' };
 
 // 刺客（敵忍者）
 const ETYPES = {
@@ -1383,6 +1383,12 @@ const G = {
   ts:1,           // 時間係数: 動くとTS_MAXへ、止まるとMIN_TSへ
   shootPulse:0,   // 手裏剣を放った直後は少しだけ時間が進む
   worldT:0,       // 世界時間（演出用。時間停止中は進まない）
+  // ── 無限の陣 ──
+  infiniteMode:false,
+  jin:1, jinFlash:0,
+  combo:0, comboTimer:0, comboPopups:[],
+  infiniteScore:0,
+  tsStock:0, tsStockActive:false,
 
   init(cv){
     this.cv=cv; this.ctx=cv.getContext('2d');
@@ -1551,7 +1557,8 @@ const G = {
       case ST.PLAY:   this.uPlay(); break;
       case ST.PAUSE:  this.uPause(); break;
       case ST.CLEAR:  this.uClear(); break;
-      case ST.OVER:   this.uOver(); break;
+      case ST.OVER:        this.uOver(); break;
+      case ST.ENDLESSOVER: this.uEndlessOver(); break;
     }
   },
 
@@ -1567,6 +1574,15 @@ const G = {
       if(x>r.x&&x<r.x+r.w&&y>r.y&&y<r.y+r.h){
         Sfx.play('deploy');
         this.startTrans(ST.SELECT,{dur:48,onMid:()=>{this.selPage=clamp(Math.floor(Progress.hi/20),0,4);}});
+        return;
+      }
+    }
+    // 無限の陣ボタン
+    if(this._endlessRect){
+      const r=this._endlessRect;
+      if(x>r.x&&x<r.x+r.w&&y>r.y&&y<r.y+r.h){
+        Sfx.play('deploy');
+        this.startTrans(ST.PLAY,{dur:48,onMid:()=>this.startEndless()});
         return;
       }
     }
@@ -1618,8 +1634,69 @@ const G = {
 
   // 残機は常に一。選んだ幕から開始する
   startGame(stage){
+    this.infiniteMode=false;
     this.mission=stage; this.lives=0; this.score=0;
     this.loadMission(stage); this.setState(ST.PLAY);
+  },
+
+  // ── 無限の陣：開始
+  startEndless(){
+    this.infiniteMode=true;
+    this.jin=1; this.infiniteScore=0;
+    this.combo=0; this.comboTimer=0; this.comboPopups=[];
+    this.tsStock=0; this.tsStockActive=false;
+    this._loadJin(1, true);
+    this.setState(ST.PLAY);
+  },
+
+  // 陣を読み込む（isFirst=true のときプレイヤーを新規作成）
+  _loadJin(jin, isFirst){
+    const baseIdx=(jin-1)%3;
+    const base=MISSIONS[baseIdx];
+    this.field=new Field(base);
+    this.allBullets=[]; this.allMines=[]; this.explosions=[];
+    this.comboPopups=this.comboPopups||[];
+    const ps=base.playerSpawn;
+    if(isFirst||!this.p1||this.p1.dead){
+      this.p1=new PlayerTank(FX+ps.col*CS+CS/2, FY+ps.row*CS+CS/2);
+    } else {
+      this.p1.x=FX+ps.col*CS+CS/2; this.p1.y=FY+ps.row*CS+CS/2;
+      this.p1.bullets=[]; this.p1.mines=[]; this.p1.tracks=[];
+    }
+    this.enemies=this._genJinEnemies(jin, base.grid);
+    this.startT=70; this.ts=MIN_TS; this.shootPulse=0;
+    this.jinFlash=40;
+  },
+
+  // 陣の敵を生成
+  _genJinEnemies(jin, grid){
+    let pool;
+    if(jin>=40)      pool=['BLACK','CRIMSON','PURPLE'];
+    else if(jin>=30) pool=['WHITE','BLACK','PURPLE'];
+    else if(jin>=20) pool=['GREEN','PURPLE','WHITE'];
+    else if(jin>=15) pool=['PINK','GREEN','PURPLE'];
+    else if(jin>=10) pool=['GREY','TEAL','YELLOW','PINK'];
+    else if(jin>=5)  pool=['BROWN','GREY','TEAL'];
+    else             pool=['BROWN','GREY'];
+    const count=clamp(3+Math.floor(jin/2), 3, 18);
+    const isBoss=jin%5===0;
+    const spots=[];
+    for(let r=1;r<ROWS-1;r++) for(let c=1;c<COLS-1;c++){
+      if(grid[r][c]!==T.EMPTY) continue;
+      if(Math.abs(c-2)+Math.abs(r-7)<5) continue;
+      spots.push({c,r});
+    }
+    const out=[];
+    for(let i=0;i<count&&spots.length;i++){
+      const s=spots.splice(rndI(0,spots.length-1),1)[0];
+      let type=pool[rndI(0,pool.length-1)];
+      if(isBoss&&i===count-1){
+        const bp=['PURPLE','WHITE','BLACK','CRIMSON'];
+        type=bp[Math.min(Math.floor(jin/5)-1,bp.length-1)];
+      }
+      out.push(new EnemyTank(FX+s.c*CS+CS/2, FY+s.r*CS+CS/2, Math.random()*PI2, type));
+    }
+    return out;
   },
 
   loadMission(num){
@@ -1648,6 +1725,18 @@ const G = {
     const p1m=this.p1&&!this.p1.dead&&(Touch.left.vx||Touch.left.vy);
     if(p1m)tgt=TS_MAX;
     if(this.shootPulse>0){this.shootPulse--; tgt=Math.max(tgt,efx.calmShoot?0.2:0.5);} // 雷は射撃で進みにくい
+    // ── 無限の陣：時間貯蓄システム
+    if(this.infiniteMode&&this.p1&&!this.p1.dead){
+      if(!p1m){
+        this.tsStock=Math.min(1,this.tsStock+0.003); // 静止中に貯蓄
+      } else {
+        if(this.tsStockActive) this.tsStock=Math.max(0,this.tsStock-0.010);
+        else this.tsStock=Math.max(0,this.tsStock-0.001);
+      }
+      if(this.tsStock>=1&&!this.tsStockActive){ this.tsStockActive=true; Sfx.play('bounce'); }
+      if(this.tsStockActive&&this.tsStock<=0){ this.tsStockActive=false; }
+      if(this.tsStockActive) tgt=Math.min(tgt, 0.015); // 貯蓄発動中は極限スロー
+    }
     this.ts=lerp(this.ts,tgt,tgt>this.ts?0.22:0.10);
     this.worldT+=this.ts;
     const targets=[];
@@ -1664,14 +1753,33 @@ const G = {
     for(const e of this.explosions)e.update();
     this.explosions=this.explosions.filter(e=>!e.dead);
     for(const t of all){t.bullets=t.bullets.filter(b=>!b.dead);t.mines=t.mines.filter(m=>!m.dead);}
+    // コンボポップアップ更新
+    if(this.infiniteMode){
+      this.comboPopups=this.comboPopups.filter(p=>{p.life--;p.y-=0.5;return p.life>0;});
+      if(this.comboTimer>0&&--this.comboTimer<=0) this.combo=0;
+    }
     // win check
     if(this.enemies.every(e=>e.dead)){
-      Progress.markCleared(this.mission); // 進捗を即保存
-      Sfx.play('clear'); this.setState(ST.CLEAR); this.clearT=120; return;
+      if(this.infiniteMode){
+        this.infiniteScore+=500+this.jin*50; // 陣クリアボーナス
+        Sfx.play('clear');
+        this.jin++;
+        this._loadJin(this.jin, false);
+      } else {
+        Progress.markCleared(this.mission); // 進捗を即保存
+        Sfx.play('clear'); this.setState(ST.CLEAR); this.clearT=120;
+      }
+      return;
     }
     // lose check（残機一：倒れたらその場で討死）
     if(!this.p1||this.p1.dead){
-      this.setState(ST.OVER); this.overT=300;
+      if(this.infiniteMode){
+        const hiKey='shinobi_endless_hi_'+this.element;
+        try{const hi=parseInt(localStorage.getItem(hiKey))||0; if(this.infiniteScore>hi)localStorage.setItem(hiKey,String(this.infiniteScore));}catch(e){}
+        this.setState(ST.ENDLESSOVER); this.overT=400;
+      } else {
+        this.setState(ST.OVER); this.overT=300;
+      }
     }
   },
 
@@ -1680,7 +1788,11 @@ const G = {
     if(!Touch.tap)return;
     const x=Touch.tapX, y=Touch.tapY;
     if(x>CW/2-220&&x<CW/2-20&&y>CH/2+20&&y<CH/2+86){this.setState(ST.PLAY);return;}
-    if(x>CW/2+20&&x<CW/2+220&&y>CH/2+20&&y<CH/2+86){this.setState(ST.SELECT);return;}
+    if(x>CW/2+20&&x<CW/2+220&&y>CH/2+20&&y<CH/2+86){
+      if(this.infiniteMode){this.infiniteMode=false;this.setState(ST.TITLE);}
+      else this.setState(ST.SELECT);
+      return;
+    }
   },
 
   uClear(){
@@ -1701,8 +1813,26 @@ const G = {
     }
   },
 
+  uEndlessOver(){
+    if(--this.overT<=0||Touch.tap){
+      this.infiniteMode=false;
+      this.setState(ST.TITLE);
+    }
+  },
+
   onDeath(tank,killer){
-    if(!tank.isPlayer&&killer===this.p1)this.score++;
+    if(!tank.isPlayer&&killer===this.p1){
+      if(this.infiniteMode){
+        this.combo++;
+        this.comboTimer=180;
+        const mul=Math.min(this.combo,10);
+        const pts=100*this.jin*mul;
+        this.infiniteScore+=pts;
+        this.comboPopups.push({x:tank.x,y:tank.y-14,pts,combo:this.combo,life:55});
+      } else {
+        this.score++;
+      }
+    }
   },
   addExplosion(x,y,r){ this.explosions.push(new Explosion(x,y,r)); },
 
@@ -1720,7 +1850,8 @@ const G = {
         if(this.state===ST.PAUSE)this.rPause(ctx);
         if(this.state===ST.CLEAR)this.rClear(ctx);
         break;
-      case ST.OVER:   this.rOver(ctx); break;
+      case ST.OVER:        this.rOver(ctx); break;
+      case ST.ENDLESSOVER: this.rEndlessOver(ctx); break;
     }
     this.drawTrans(ctx); // 画面遷移フェードを最前面に
   },
@@ -2061,13 +2192,15 @@ const G = {
       const fx2=rmx-fw/2;
       const outerY=140, outerH=490; // 外枠（上端〜下端）
       const gap=12; // 外枠の内側余白
-      const atH=240; // 属性パネルの高さ
-      const btnH=82; // 出陣ボタンの高さ
+      const atH=190; // 属性パネルの高さ
+      const btnH=68; // 出陣ボタンの高さ
+      const btn2H=50; // 無限の陣ボタンの高さ
       // 上中下の余白を均等に
       const innerH=outerH-gap*2;
-      const spaceY=Math.round((innerH-atH-btnH)/3);
+      const spaceY=Math.round((innerH-atH-btnH-btn2H)/4);
       const atY=outerY+gap+spaceY;
       const btnY=atY+atH+spaceY;
+      const btn2Y=btnY+btnH+spaceY;
 
       // ── 外枠
       ctx.save();
@@ -2175,7 +2308,37 @@ const G = {
         ctx.restore();
       }
       // 出陣ボタンのヒット範囲をthisに保存（タップ判定に使用）
-      this._senjiRect={x:fx2,y:btnY-10,w:fw,h:btnH+20};
+      this._senjiRect={x:fx2,y:btnY-6,w:fw,h:btnH+12};
+
+      // ── 無限の陣ボタン
+      {
+        const x=fx2+gap, y=btn2Y, w=fw-gap*2, h=btn2H;
+        ctx.save();
+        // 底面
+        ctx.fillStyle='rgba(8,18,40,0.9)'; ctx.fillRect(x+3,y+3,w,h);
+        // 本体
+        const ibg=ctx.createLinearGradient(x,y,x,y+h);
+        ibg.addColorStop(0,'rgba(20,40,80,0.95)'); ibg.addColorStop(1,'rgba(8,18,40,0.95)');
+        ctx.fillStyle=ibg; ctx.fillRect(x,y,w,h);
+        // 枠（月光の青）
+        ctx.strokeStyle='rgba(140,190,255,0.75)'; ctx.lineWidth=1.8;
+        ctx.shadowColor='rgba(140,190,255,0.5)'; ctx.shadowBlur=10;
+        ctx.strokeRect(x,y,w,h); ctx.shadowBlur=0;
+        // 星の装飾
+        ctx.save(); ctx.translate(x+22,y+h/2);
+        ctx.fillStyle='rgba(180,220,255,0.9)';
+        for(let k=0;k<4;k++){
+          ctx.rotate(Math.PI/2);
+          ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(7,1.8); ctx.lineTo(7,-1.8); ctx.closePath(); ctx.fill();
+        }
+        ctx.restore();
+        // テキスト
+        ctx.font='bold 22px '+FJ; ctx.textAlign='center'; ctx.fillStyle='#BDD8FF';
+        ctx.shadowColor='rgba(140,190,255,0.7)'; ctx.shadowBlur=10;
+        ctx.fillText('無 限 の 陣', x+w/2+10, y+h/2+8);
+        ctx.shadowBlur=0; ctx.restore();
+      }
+      this._endlessRect={x:fx2,y:btn2Y-4,w:fw,h:btn2H+8};
     }
     // ── 五遁の輪（左右タップで送る回転式カルーセル・大型版）
     const cy=490;
@@ -2686,6 +2849,26 @@ const G = {
     for(const e of this.enemies)e.draw(ctx);
     for(const b of this.allBullets)b.draw(ctx);
     for(const e of this.explosions)e.draw(ctx);
+    // コンボポップアップ（無限の陣）
+    if(this.infiniteMode){
+      for(const p of (this.comboPopups||[])){
+        const a=p.life/55;
+        ctx.save(); ctx.globalAlpha=a;
+        const ce2=GOTON[this.element]||GOTON.FIRE;
+        ctx.fillStyle=p.combo>=5?KIN:ce2.col;
+        ctx.font='bold '+(p.combo>=5?19:15)+'px '+FJ; ctx.textAlign='center';
+        ctx.shadowColor=p.combo>=5?KIN:ce2.glow; ctx.shadowBlur=8;
+        ctx.fillText('+'+p.pts+(p.combo>1?'  '+p.combo+'連':''), p.x, p.y);
+        ctx.shadowBlur=0; ctx.restore();
+      }
+      // 陣切り替えフラッシュ
+      if(this.jinFlash>0){
+        this.jinFlash--;
+        ctx.save(); ctx.globalAlpha=(this.jinFlash/40)*0.35;
+        ctx.fillStyle='#BDD8FF'; ctx.fillRect(FX,FY,FW,FH);
+        ctx.restore();
+      }
+    }
     // 手裏剣の軌道予測（時間停止中・照準操作中に見える）
     if(this.state===ST.PLAY&&this.startT<=0)this.rAimGuide(ctx);
     // 時間停止の演出（藍墨のトーン＋ビネット）
@@ -2713,14 +2896,14 @@ const G = {
       ctx.fillStyle='#06060c'; ctx.fillRect(0,0,CW,CH);
       ctx.globalAlpha=a;
       ctx.font='bold 56px '+FJ; ctx.textAlign='center'; ctx.fillStyle=WASHI;
-      ctx.fillText('第'+kanjiNum(this.mission)+'幕', CW/2, CH/2-10);
+      ctx.fillText(this.infiniteMode?'第'+kanjiNum(this.jin)+'陣':'第'+kanjiNum(this.mission)+'幕', CW/2, CH/2-10);
       // 朱の筆線
       ctx.strokeStyle='rgba(199,62,58,0.85)'; ctx.lineWidth=5; ctx.lineCap='round';
       ctx.beginPath();
       ctx.moveTo(CW/2-110,CH/2+8); ctx.quadraticCurveTo(CW/2,CH/2+15,CW/2+110,CH/2+6);
       ctx.stroke();
       ctx.font='20px '+FJ; ctx.fillStyle='#FF9D7E';
-      ctx.fillText('残命 一 ― 倒れれば任務帖へ', CW/2, CH/2+44);
+      ctx.fillText(this.infiniteMode?'連鎖を重ね、高スコアを目指せ':'残命 一 ― 倒れれば任務帖へ', CW/2, CH/2+44);
       const ie=GOTON[this.element]||GOTON.FIRE;
       ctx.font='17px '+FJ; ctx.fillStyle=ie.col;
       ctx.fillText('流派　'+ie.name, CW/2, CH/2+74);
@@ -2789,12 +2972,26 @@ const G = {
     ctx.strokeStyle='rgba(212,175,55,0.30)'; ctx.lineWidth=1;
     ctx.beginPath(); ctx.moveTo(0,FY-5.5); ctx.lineTo(CW,FY-5.5); ctx.stroke();
     ctx.textBaseline='alphabetic';
-    // 第X幕（フィールド左端）
+    // 第X幕 or 第X陣（フィールド左端）
     ctx.fillStyle=WASHI; ctx.font='bold 19px '+FJ; ctx.textAlign='left';
-    ctx.fillText('第'+kanjiNum(this.mission)+'幕', FX+8, 39);
-    // 討伐（第X幕の右に続けて・重ならない距離）
-    ctx.fillStyle='#C9BFA8'; ctx.font='bold 17px '+FJ;
-    ctx.fillText('討伐 '+this.score, FX+96, 39);
+    if(this.infiniteMode){
+      ctx.fillText('第'+kanjiNum(this.jin)+'陣', FX+8, 39);
+      const hc2=GOTON[this.element]||GOTON.FIRE;
+      ctx.fillStyle=hc2.col; ctx.font='bold 17px '+FJ;
+      ctx.fillText(this.infiniteScore.toLocaleString()+'点', FX+84, 39);
+      if(this.combo>1){
+        ctx.fillStyle=this.combo>=5?KIN:hc2.col;
+        ctx.font='bold 14px '+FJ;
+        ctx.shadowColor=hc2.glow; ctx.shadowBlur=6;
+        ctx.fillText(this.combo+'連 ×'+Math.min(this.combo,10), FX+84, 54);
+        ctx.shadowBlur=0;
+      }
+    } else {
+      ctx.fillText('第'+kanjiNum(this.mission)+'幕', FX+8, 39);
+      // 討伐（第X幕の右に続けて・重ならない距離）
+      ctx.fillStyle='#C9BFA8'; ctx.font='bold 17px '+FJ;
+      ctx.fillText('討伐 '+this.score, FX+96, 39);
+    }
     // 静⇄動 ゲージ（中央・大型）
     const bw=260, bh=16, bx=CW/2-bw/2, by=18;
     const flow=this.ts>0.5;
@@ -2809,10 +3006,27 @@ const G = {
     ctx.fillRect(bx,by,bw*clamp(this.ts/TS_MAX,0,1),bh);
     ctx.strokeStyle='rgba(242,232,213,0.3)'; ctx.lineWidth=1;
     ctx.strokeRect(bx+0.5,by+0.5,bw-1,bh-1);
+    // 時間貯蓄ゲージ（無限の陣のみ）
+    if(this.infiniteMode&&this.tsStock>0.05){
+      const sg_x=bx, sg_y=by+bh+5, sg_w=bw, sg_h=6;
+      ctx.fillStyle='rgba(255,255,255,0.06)'; ctx.fillRect(sg_x,sg_y,sg_w,sg_h);
+      if(this.tsStockActive){ctx.shadowColor='#BDD8FF';ctx.shadowBlur=12;}
+      ctx.fillStyle=this.tsStockActive?'#FFFFFF':'#7AADDF';
+      ctx.fillRect(sg_x,sg_y,sg_w*this.tsStock,sg_h);
+      ctx.shadowBlur=0;
+      ctx.strokeStyle='rgba(140,190,255,0.25)'; ctx.lineWidth=1;
+      ctx.strokeRect(sg_x,sg_y,sg_w,sg_h);
+      if(this.tsStockActive){
+        ctx.save(); ctx.globalAlpha=0.7+0.3*Math.sin(this.frame*0.25);
+        ctx.fillStyle='#BDD8FF'; ctx.font='bold 11px '+FJ; ctx.textAlign='center';
+        ctx.fillText('刹那貯蓄 発動中', bx+bw/2, sg_y+sg_h+12);
+        ctx.restore();
+      }
+    }
     // 敵影（フィールド右端）
     const rem=this.enemies.filter(e=>!e.dead).length;
     ctx.fillStyle='#FF7E6B'; ctx.font='bold 18px '+FJ; ctx.textAlign='right';
-    ctx.fillText('敵影 '+kanjiNum(rem), CW-FX-8, 39);
+    ctx.fillText(this.infiniteMode?'敵影 '+rem:'敵影 '+kanjiNum(rem), CW-FX-8, 39);
     ctx.textAlign='left';
   },
 
@@ -2850,6 +3064,41 @@ const G = {
     if(p>0.25)this.rSeal(ctx, CW/2+210, CH/2-12, 64, '完', -0.12);
     ctx.font='15px '+FJ; ctx.fillStyle='#C9BFA8';
     ctx.fillText('帖に「完」の印を記した', CW/2, CH/2+58);
+    ctx.restore(); ctx.textAlign='left';
+  },
+
+  rEndlessOver(ctx){
+    const hiKey='shinobi_endless_hi_'+this.element;
+    let hi=0; try{hi=parseInt(localStorage.getItem(hiKey))||0;}catch(e){}
+    const isNew=this.infiniteScore>0&&this.infiniteScore>=hi;
+    const ce=GOTON[this.element]||GOTON.FIRE;
+    ctx.fillStyle='#07070f'; ctx.fillRect(0,0,CW,CH);
+    // タイトル
+    ctx.font='bold 58px '+FJ; ctx.textAlign='center';
+    ctx.fillStyle=SHU; ctx.shadowColor='rgba(180,30,30,0.7)'; ctx.shadowBlur=22;
+    ctx.fillText('無念', CW/2, CH/2-100);
+    ctx.shadowBlur=0;
+    // 陣数
+    ctx.fillStyle=WASHI; ctx.font='28px '+FJ;
+    ctx.fillText('到達　第'+kanjiNum(this.jin)+'陣', CW/2, CH/2-46);
+    // スコア
+    ctx.fillStyle=ce.col; ctx.font='bold 46px '+FJ;
+    ctx.shadowColor=ce.glow; ctx.shadowBlur=18;
+    ctx.fillText(this.infiniteScore.toLocaleString()+'　点', CW/2, CH/2+14);
+    ctx.shadowBlur=0;
+    if(isNew) this.rSeal(ctx, CW/2+210, CH/2+2, 52, '最高', -0.08);
+    // 最高記録
+    ctx.fillStyle='#C9BFA8'; ctx.font='20px '+FJ;
+    ctx.fillText('最高記録　'+hi.toLocaleString()+'　点', CW/2, CH/2+60);
+    // 詳細
+    ctx.fillStyle=KIN; ctx.font='16px '+FJ;
+    const maxCombo=this.combo;
+    ctx.fillText('流派　'+ce.name+'　・　連鎖最大 '+maxCombo+'　体', CW/2, CH/2+92);
+    // タップ案内
+    const alpha=0.5+0.35*Math.sin(this.frame*0.07);
+    ctx.save(); ctx.globalAlpha=alpha;
+    ctx.fillStyle='#C9BFA8'; ctx.font='18px '+FJ;
+    ctx.fillText('タップして表紙へ', CW/2, CH/2+140);
     ctx.restore(); ctx.textAlign='left';
   },
 
