@@ -1870,34 +1870,54 @@ const G = {
   startReplay(returnSt){
     this._replayReturnSt=returnSt;
     this.replayIdx=0;
-    this._rplayGrid=null; // 再生中のグリッド状態
-    // 最初のgridSnapを適用
+    this._rplaySpeed=1; // 現在の再生速度（B: lerp でなめらかに変化）
+    this._rplayGrid=null;
     for(const f of this.replayFrames){ if(f.grid){this._rplayGrid=f.grid.map(r=>[...r]);break;} }
     this.setState(ST.REPLAY);
     this.showControls(false);
   },
 
   uReplay(){
-    // タップで終了
     if(Touch.tap){ this.setState(this._replayReturnSt||ST.TITLE); this.syncControls(); return; }
-    // 敵時間軸: ts の逆数だけ進める
-    // ts=0.06（停止中）→ 約17f飛ばす → 静止瞬間が一瞬で消える
-    // ts=1.18（移動中）→ 0.85f進む → アクション場面はゆっくり見える
-    const curF=this.replayFrames[Math.floor(this.replayIdx)];
-    const tsNow=curF?.ts||1;
-    const advance=clamp(1/tsNow, 0.4, 20);
-    const spd=(Touch.right.moving||Touch.fire)?3:1;
-    this.replayIdx=Math.min(this.replayIdx+advance*spd, this.replayFrames.length-1);
-    // グリッド更新（飛ばしたフレーム内の変化を全て適用）
-    const to=Math.floor(this.replayIdx);
-    for(let i=Math.max(0,to-Math.ceil(advance));i<=to;i++){
+    const fi=Math.floor(this.replayIdx);
+    const tsNow=this.replayFrames[fi]?.ts||1;
+    // B: 目標速度を 1/ts で決め、lerp でなめらかに追従（急変を防ぐ）
+    const targetSpd=clamp(1/tsNow, 0.4, 5);
+    this._rplaySpeed=lerp(this._rplaySpeed, targetSpd, 0.08);
+    const boost=(Touch.right.moving||Touch.fire)?3:1;
+    const step=this._rplaySpeed*boost;
+    this.replayIdx=Math.min(this.replayIdx+step, this.replayFrames.length-1);
+    // 飛ばしたフレームのグリッド変化を順番に適用
+    const newFi=Math.floor(this.replayIdx);
+    for(let i=fi;i<=newFi;i++){
       if(this.replayFrames[i]?.grid) this._rplayGrid=this.replayFrames[i].grid.map(r=>[...r]);
     }
     this.worldT+=1;
   },
 
   rReplay(ctx){
-    const f=this.replayFrames[Math.floor(this.replayIdx)]; if(!f) return;
+    // A: フレーム間補間（小数部分 t で f0→f1 を lerp）
+    const fi=Math.floor(this.replayIdx);
+    const t=this.replayIdx-fi;
+    const f0=this.replayFrames[fi];
+    const f1=this.replayFrames[Math.min(fi+1,this.replayFrames.length-1)];
+    if(!f0) return;
+    // プレイヤー位置・角度を補間
+    const f={
+      ts: f0.ts,
+      bu: f0.bu, mi: f0.mi, ex: f0.ex,
+      p1: f0.p1&&f1?.p1&&!f0.p1.d ? {
+        x:lerp(f0.p1.x,f1.p1.x,t), y:lerp(f0.p1.y,f1.p1.y,t),
+        a:lerpA(f0.p1.a,f1.p1.a,t), ta:lerpA(f0.p1.ta,f1.p1.ta,t), d:f0.p1.d
+      } : f0.p1,
+      // 敵の位置・角度を補間
+      en: f0.en.map((e0,i)=>{
+        const e1=f1?.en[i];
+        if(!e1||e0.d) return e0;
+        return {x:lerp(e0.x,e1.x,t), y:lerp(e0.y,e1.y,t),
+                a:lerpA(e0.a,e1.a,t), ta:lerpA(e0.ta,e1.ta,t), d:e0.d, inv:e0.inv};
+      }),
+    };
     // 背景（rGameと同じ）
     ctx.fillStyle='#0b0c16'; ctx.fillRect(0,0,CW,CH);
     this.rStoneSides(ctx);
