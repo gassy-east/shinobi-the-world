@@ -1869,8 +1869,11 @@ const G = {
   // ── リプレイ：開始 ────────────────────────────────────────────
   startReplay(returnSt){
     this._replayReturnSt=returnSt;
-    this.replayIdx=0;
-    this._rplaySpeed=1; // 現在の再生速度（B: lerp でなめらかに変化）
+    // 敵時間マップを事前計算: _rplayET[i] = frame 0〜i までの ts の累積和
+    let cum=0;
+    this._rplayET=this.replayFrames.map(f=>{ cum+=f.ts; return cum; });
+    this._rplayEtCursor=0; // 敵時間カーソル（毎tick +1 で等速進行）
+    this.replayIdx=0;      // 描画用フレームインデックス（小数）
     this._rplayGrid=null;
     for(const f of this.replayFrames){ if(f.grid){this._rplayGrid=f.grid.map(r=>[...r]);break;} }
     this.setState(ST.REPLAY);
@@ -1879,16 +1882,23 @@ const G = {
 
   uReplay(){
     if(Touch.tap){ this.setState(this._replayReturnSt||ST.TITLE); this.syncControls(); return; }
-    const fi=Math.floor(this.replayIdx);
-    // C: 等速再生（1フレーム/tick 固定）
     const boost=(Touch.right.moving||Touch.fire)?3:1;
-    const step=1*boost;
-    this.replayIdx=Math.min(this.replayIdx+step, this.replayFrames.length-1);
-    // 飛ばしたフレームのグリッド変化を順番に適用
-    const newFi=Math.floor(this.replayIdx);
-    for(let i=fi;i<=newFi;i++){
+    const etTotal=this._rplayET[this._rplayET.length-1]||1;
+    this._rplayEtCursor=Math.min(this._rplayEtCursor+boost, etTotal);
+
+    // バイナリサーチ: 敵時間カーソルに対応するフレームインデックスを求める
+    const et=this._rplayEtCursor, times=this._rplayET;
+    let lo=0, hi=times.length-1;
+    while(lo<hi){ const mid=(lo+hi)>>1; if(times[mid]<et)lo=mid+1; else hi=mid; }
+    const fi=Math.max(0,lo-1);
+    const frac=(lo>0&&times[lo]>times[fi])?(et-times[fi])/(times[lo]-times[fi]):0;
+
+    // グリッド変化を飛ばしたフレーム分まとめて適用
+    const prevFi=Math.floor(this.replayIdx);
+    for(let i=prevFi;i<=fi;i++){
       if(this.replayFrames[i]?.grid) this._rplayGrid=this.replayFrames[i].grid.map(r=>[...r]);
     }
+    this.replayIdx=fi+frac; // 小数インデックス（A: 補間用）
     this.worldT+=1;
   },
 
@@ -2015,7 +2025,8 @@ const G = {
     ctx.fillStyle=WASHI; ctx.font='bold 16px '+FJ; ctx.textAlign='center';
     ctx.fillText('敵目線の振り返り　第'+kanjiNum(this.mission)+'幕', CW/2, 22);
     // 進捗バー
-    const prog=this.replayIdx/Math.max(1,this.replayFrames.length-1);
+    const _etTot=this._rplayET?.[this._rplayET.length-1]||1;
+    const prog=Math.min(1,(this._rplayEtCursor||0)/_etTot);
     const bw=280,bx2=CW/2-bw/2,by2=28,bh2=6;
     ctx.fillStyle='rgba(255,255,255,0.07)'; ctx.fillRect(bx2,by2,bw,bh2);
     ctx.fillStyle='rgba(140,190,255,0.75)'; ctx.fillRect(bx2,by2,bw*prog,bh2);
