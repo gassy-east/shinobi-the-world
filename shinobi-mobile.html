@@ -1880,12 +1880,9 @@ const G = {
   uReplay(){
     if(Touch.tap){ this.setState(this._replayReturnSt||ST.TITLE); this.syncControls(); return; }
     const fi=Math.floor(this.replayIdx);
-    const tsNow=this.replayFrames[fi]?.ts||1;
-    // B: 目標速度を 1/ts で決め、lerp でなめらかに追従（急変を防ぐ）
-    const targetSpd=clamp(1/tsNow, 0.4, 5);
-    this._rplaySpeed=lerp(this._rplaySpeed, targetSpd, 0.08);
+    // C: 等速再生（1フレーム/tick 固定）
     const boost=(Touch.right.moving||Touch.fire)?3:1;
-    const step=this._rplaySpeed*boost;
+    const step=1*boost;
     this.replayIdx=Math.min(this.replayIdx+step, this.replayFrames.length-1);
     // 飛ばしたフレームのグリッド変化を順番に適用
     const newFi=Math.floor(this.replayIdx);
