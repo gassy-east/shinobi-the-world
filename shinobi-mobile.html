@@ -1880,17 +1880,24 @@ const G = {
   uReplay(){
     // タップで終了
     if(Touch.tap){ this.setState(this._replayReturnSt||ST.TITLE); this.syncControls(); return; }
-    // 2倍速再生（スティック操作で速度切替）
+    // 敵時間軸: ts の逆数だけ進める
+    // ts=0.06（停止中）→ 約17f飛ばす → 静止瞬間が一瞬で消える
+    // ts=1.18（移動中）→ 0.85f進む → アクション場面はゆっくり見える
+    const curF=this.replayFrames[Math.floor(this.replayIdx)];
+    const tsNow=curF?.ts||1;
+    const advance=clamp(1/tsNow, 0.4, 20);
     const spd=(Touch.right.moving||Touch.fire)?3:1;
-    this.replayIdx=Math.min(this.replayIdx+spd, this.replayFrames.length-1);
-    // グリッド更新
-    const f=this.replayFrames[this.replayIdx];
-    if(f?.grid) this._rplayGrid=f.grid.map(r=>[...r]);
-    this.worldT+=1; // 演出アニメ用
+    this.replayIdx=Math.min(this.replayIdx+advance*spd, this.replayFrames.length-1);
+    // グリッド更新（飛ばしたフレーム内の変化を全て適用）
+    const to=Math.floor(this.replayIdx);
+    for(let i=Math.max(0,to-Math.ceil(advance));i<=to;i++){
+      if(this.replayFrames[i]?.grid) this._rplayGrid=this.replayFrames[i].grid.map(r=>[...r]);
+    }
+    this.worldT+=1;
   },
 
   rReplay(ctx){
-    const f=this.replayFrames[this.replayIdx]; if(!f) return;
+    const f=this.replayFrames[Math.floor(this.replayIdx)]; if(!f) return;
     // 背景（rGameと同じ）
     ctx.fillStyle='#0b0c16'; ctx.fillRect(0,0,CW,CH);
     this.rStoneSides(ctx);
