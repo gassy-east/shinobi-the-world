@@ -1517,7 +1517,7 @@ const G = {
   },
   syncControls(){
     if(Customize.active)return;
-    const on=this.state===ST.PLAY||this.state===ST.PAUSE||this.state===ST.CLEAR;
+    const on=this.state===ST.PLAY||this.state===ST.PAUSE;
     this.showControls(on);
   },
 
