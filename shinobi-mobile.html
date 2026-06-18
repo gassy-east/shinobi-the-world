@@ -1811,21 +1811,22 @@ const G = {
     if(this.clearT>0){ --this.clearT; return; } // 短い演出待ち
     if(!Touch.tap) return;
     const x=Touch.tapX, y=Touch.tapY;
-    const cy=CH/2+30;
+    const bx=CW/2-100, bw=200, bh=66, gap=16;
+    const by0=CH/2+10, by1=by0+bh+gap, by2=by1+bh+gap;
     // 次のステージ
-    if(x>CW/2-220&&x<CW/2-20&&y>cy&&y<cy+70){
+    if(x>bx&&x<bx+bw&&y>by0&&y<by0+bh){
       this.mission++;
       if(this.mission>MAX_MISSION){ this.setState(ST.OVER); this.overT=300; }
       else { this.loadMission(this.mission); this.setState(ST.PLAY); }
       return;
     }
-    // 振り返り
-    if(x>CW/2-100&&x<CW/2+100&&y>cy+80&&y<cy+150){
-      this.startReplay(ST.CLEAR); return;
-    }
     // 任務帖へ
-    if(x>CW/2+20&&x<CW/2+220&&y>cy&&y<cy+70){
+    if(x>bx&&x<bx+bw&&y>by1&&y<by1+bh){
       this.setState(ST.SELECT); return;
+    }
+    // 振り返り
+    if(x>bx&&x<bx+bw&&y>by2&&y<by2+bh){
+      this.startReplay(ST.CLEAR); return;
     }
   },
 
@@ -3300,35 +3301,34 @@ const G = {
     ctx.font='15px '+FJ; ctx.fillStyle='#C9BFA8';
     ctx.fillText('帖に「完」の印を記した', CW/2, CH/2-14);
     if(this.clearT>0){ ctx.restore(); ctx.textAlign='left'; return; }
-    // 3択ボタン
-    const cy=CH/2+30;
-    const plaque=(x,label,sub,hot,blue)=>{
+    // 3択ボタン（縦並び）
+    const bx=CW/2-100, bw=200, bh=66, gap=16;
+    const by0=CH/2+10, by1=by0+bh+gap, by2=by1+bh+gap;
+    const plaque=(by,label,sub,hot,blue)=>{
       ctx.save();
       ctx.fillStyle=hot?'rgba(50,30,24,0.92)':blue?'rgba(8,18,40,0.92)':'rgba(28,24,30,0.88)';
-      ctx.fillRect(x,cy,200,66);
+      ctx.fillRect(bx,by,bw,bh);
       ctx.strokeStyle=hot?SHU:blue?'rgba(140,190,255,0.7)':'rgba(120,110,95,0.5)';
-      ctx.lineWidth=hot||blue?2:1; ctx.strokeRect(x,cy,200,66);
+      ctx.lineWidth=hot||blue?2:1; ctx.strokeRect(bx,by,bw,bh);
       ctx.font='bold 20px '+FJ; ctx.fillStyle=hot?WASHI:blue?'#BDD8FF':WASHI; ctx.textAlign='center';
-      ctx.fillText(label, x+100, cy+30);
+      ctx.fillText(label, CW/2, by+30);
       ctx.font='12px '+FJ; ctx.fillStyle='rgba(212,175,55,0.8)';
-      ctx.fillText(sub, x+100, cy+52);
+      ctx.fillText(sub, CW/2, by+52);
       ctx.restore();
     };
-    plaque(CW/2-220,'次のステージへ','第'+kanjiNum(Math.min(this.mission+1,MAX_MISSION))+'幕',true,false);
-    plaque(CW/2+20,'任務帖へ','幕を選び直す',false,false);
-    // 振り返りボタン（中央下・幅広）
+    plaque(by0,'次のステージへ','第'+kanjiNum(Math.min(this.mission+1,MAX_MISSION))+'幕',true,false);
+    plaque(by1,'任務帖へ','幕を選び直す',false,false);
+    // 振り返りボタン
     ctx.save();
-    ctx.fillStyle='rgba(8,18,40,0.90)';
-    ctx.fillRect(CW/2-100,cy+80,200,66);
-    ctx.strokeStyle='rgba(140,190,255,0.65)'; ctx.lineWidth=2;
-    ctx.strokeRect(CW/2-100,cy+80,200,66);
     const pulse=0.7+0.3*Math.sin(this.frame*0.07);
+    ctx.fillStyle='rgba(8,18,40,0.90)'; ctx.fillRect(bx,by2,bw,bh);
+    ctx.strokeStyle='rgba(140,190,255,0.65)'; ctx.lineWidth=2; ctx.strokeRect(bx,by2,bw,bh);
     ctx.globalAlpha=pulse;
     ctx.font='bold 20px '+FJ; ctx.fillStyle='#BDD8FF'; ctx.textAlign='center';
-    ctx.fillText('振り返る', CW/2, cy+112);
+    ctx.fillText('振り返る', CW/2, by2+30);
     ctx.globalAlpha=1;
     ctx.font='12px '+FJ; ctx.fillStyle='rgba(140,190,255,0.7)';
-    ctx.fillText('敵目線で見直す', CW/2, cy+134);
+    ctx.fillText('敵目線で見直す', CW/2, by2+52);
     ctx.restore();
     ctx.restore(); ctx.textAlign='left';
   },
